@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="http://tizen.org/PlatinumIPTV" version="1.0.0" viewmodes="fullscreen">
+    <tizen:application id="X2YyFwShg9.PlatinumIPTV" package="X2YyFwShg9" required_version="3.0"/>
+    <content src="index.html"/>
+    <feature name="http://tizen.org/feature/screen.size.all"/>
+    <icon src="icon.png"/>
+    <name>Platinum Media Center</name>
+    
+    <!-- Privilèges Standard -->
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/network.get"/>
+    <tizen:privilege name="http://tizen.org/privilege/tv.audio"/>
+    <tizen:privilege name="http://tizen.org/privilege/tv.window"/>
+    <tizen:privilege name="http://tizen.org/privilege/volume.set"/>
+    <tizen:privilege name="http://tizen.org/privilege/display"/>
+    
+    <!-- Privilèges Samsung Partenaire (Cruciaux pour l'IPTV) -->
+    <tizen:privilege name="http://developer.samsung.com/privilege/avplay"/>
+    <tizen:privilege name="http://developer.samsung.com/privilege/network.conf"/>
+    
+    <tizen:profile name="tv-samsung"/>
+    
+    <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable" install-location="auto" hw-key-event="enable"/>
+</widget>

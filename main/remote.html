@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Platinum Remote</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#050505">
+    <meta name="apple-mobile-web-app-title" content="Platinum">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%23050505'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-weight='900' font-size='260' font-style='italic' fill='%23b5924d'%3EP%3C/text%3E%3C/svg%3E">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%23050505'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-weight='900' font-size='260' font-style='italic' fill='%23b5924d'%3EP%3C/text%3E%3C/svg%3E">
+    <style>
+        :root {
+            --gold: #b5924d;
+            --bg: #050505;
+            --card: rgba(255, 255, 255, 0.05);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: white;
+            font-family: 'Inter', -apple-system, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .header {
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            position: relative;
+            z-index: 1100;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.6em;
+            color: var(--gold);
+            flex: 1;
+            text-align: center;
+        }
+
+        .refresh-btn {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gold);
+            opacity: 0.8;
+            transition: 0.3s;
+        }
+
+        .refresh-btn:active {
+            transform: rotate(180deg);
+            opacity: 1;
+        }
+
+        .refresh-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
+        .menu-trigger {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+
+        .menu-trigger span {
+            width: 25px;
+            height: 2px;
+            background: var(--gold);
+            border-radius: 2px;
+            transition: 0.3s;
+        }
+
+        .container {
+            padding: 20px;
+            height: calc(100vh - 60px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+        }
+
+        /* --- DRAWER MENU --- */
+        #menu-drawer {
+            position: fixed;
+            top: 0;
+            left: -100%;
+            width: 80%;
+            max-width: 300px;
+            height: 100%;
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 2000;
+            transition: left 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            padding: 60px 30px;
+            border-right: 1px solid var(--border);
+        }
+
+        #menu-drawer.open {
+            left: 0;
+        }
+
+        .menu-item {
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            transition: 0.2s;
+        }
+
+        .menu-item.active {
+            background: var(--gold);
+            color: black;
+        }
+
+        .menu-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1900;
+            display: none;
+        }
+
+        /* --- MODE NAVIGATION (MODERN DPAD) --- */
+        #nav-mode {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+
+        .nav-container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+        }
+
+        #trackpad-view {
+            display: none;
+        }
+
+        #dpad-view {
+            display: none;
+        }
+
+        body.mode-trackpad #trackpad-view {
+            display: flex;
+        }
+
+        body.mode-dpad #dpad-view {
+            display: flex;
+        }
+
+        .modern-dpad {
+            position: relative;
+            width: 280px;
+            height: 280px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .dpad-btn {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: none;
+            border-radius: 50%;
+            transition: all 0.2s;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .dpad-btn:active {
+            background: rgba(181, 146, 77, 0.2);
+            color: var(--gold);
+            transform: scale(0.9);
+        }
+
+        .dpad-btn svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
+
+        .btn-up {
+            top: 10px;
+            left: calc(50% - 40px);
+        }
+
+        .btn-down {
+            bottom: 10px;
+            left: calc(50% - 40px);
+        }
+
+        .btn-left {
+            left: 10px;
+            top: calc(50% - 40px);
+        }
+
+        .btn-right {
+            right: 10px;
+            top: calc(50% - 40px);
+        }
+
+        .btn-ok {
+            top: calc(50% - 40px);
+            left: calc(50% - 40px);
+            background: var(--gold);
+            color: black;
+            font-weight: 900;
+            border-radius: 50%;
+            font-size: 14px;
+            box-shadow: 0 0 30px rgba(181, 146, 77, 0.3);
+            border: none;
+        }
+
+        .back-row {
+            margin-top: 20px;
+            width: 100%;
+            padding: 0 20px;
+        }
+
+        #trackpad {
+            width: 100%;
+            height: 280px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border);
+            border-radius: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.5);
+            touch-action: none;
+        }
+
+        #trackpad::before {
+            content: "TRACKPAD PLATINUM";
+            font-size: 7px;
+            font-weight: 900;
+            letter-spacing: 0.6em;
+            color: rgba(181, 146, 77, 0.2);
+        }
+
+        /* --- MODE LECTEUR --- */
+        #player-mode {
+            display: none;
+            flex-direction: column;
+            gap: 40px;
+        }
+
+        .playback-main {
+            display: grid;
+            grid-template-columns: 1fr 90px 1fr;
+            align-items: center;
+            justify-items: center;
+            width: 100%;
+        }
+
+        .play-btn {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: var(--gold);
+            color: black;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 40px rgba(181, 146, 77, 0.3);
+            cursor: pointer;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .play-btn:active {
+            transform: scale(0.92);
+        }
+
+        .play-btn svg {
+            width: 42px;
+            height: 42px;
+            fill: currentColor;
+            display: block;
+        }
+
+        /* Centrage optique millimétré */
+        .play-btn.is-play svg {
+            transform: translateX(1px);
+            /* Juste un chouïa pour le poids visuel */
+        }
+
+        .play-btn:not(.is-play) svg {
+            transform: none;
+        }
+
+        .progress-wrap {
+            width: 100%;
+            padding: 10px 0;
+        }
+
+        .progress-bg {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+            position: relative;
+        }
+
+        #progress-bar {
+            height: 100%;
+            background: var(--gold);
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .ctrl-btn {
+            background: var(--card);
+            border: 1px solid var(--border);
+            padding: 18px;
+            border-radius: 20px;
+            text-align: center;
+            font-size: 9px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            transition: all 0.2s;
+        }
+
+        .ctrl-btn:active {
+            border-color: var(--gold);
+            color: var(--gold);
+            transform: translateY(2px);
+        }
+
+        /* --- PANEL TRACKS (GLASSMORPHISM) --- */
+        #tracks-panel {
+            position: fixed;
+            bottom: -100%;
+            left: 0;
+            width: 100%;
+            height: 70%;
+            background: rgba(10, 10, 10, 0.8);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border-top: 1px solid var(--border);
+            border-radius: 40px 40px 0 0;
+            z-index: 1000;
+            transition: bottom 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        #tracks-panel.visible {
+            bottom: 0;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .panel-header h2 {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.4em;
+            color: var(--gold);
+            margin: 0;
+        }
+
+        .close-panel {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .tracks-scroll {
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding-bottom: 40px;
+        }
+
+        .track-item {
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid transparent;
+            border-radius: 15px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .track-item.active {
+            border-color: var(--gold);
+            background: rgba(181, 146, 77, 0.1);
+            color: var(--gold);
+        }
+
+        /* --- VISIBILITÉ MODES --- */
+        body.player-active #player-mode {
+            display: flex;
+        }
+
+        body.player-inactive #nav-mode {
+            display: flex;
+        }
+
+        #ripple {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background: rgba(181, 146, 77, 0.4);
+            border-radius: 50%;
+            transform: scale(0);
+            pointer-events: none;
+        }
+
+        .ripple-anim {
+            animation: ripple-kf 0.4s ease-out;
+        }
+
+        @keyframes ripple-kf {
+            to {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body class="player-inactive mode-trackpad">
+    <div class="menu-overlay" id="menu-overlay" onclick="toggleMenu()"></div>
+
+    <div id="menu-drawer">
+        <h2
+            style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.3em; color: var(--gold); margin-bottom: 30px;">
+            Options</h2>
+        <div class="menu-item active" id="m-track" onclick="setMode('trackpad')">
+            <span>🖱️</span> Trackpad
+        </div>
+        <div class="menu-item" id="m-dpad" onclick="setMode('dpad')">
+            <span>🕹️</span> Flèches D-Pad
+        </div>
+    </div>
+
+    <div class="header">
+        <div class="menu-trigger" onclick="toggleMenu()">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+        <h1>Platinum Remote</h1>
+        <div class="refresh-btn" onclick="location.reload()">
+            <svg viewBox="0 0 24 24">
+                <path
+                    d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+            </svg>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- MODE NAVIGATION -->
+        <div id="nav-mode">
+            <div class="nav-container">
+                <!-- ZONE DE RECHERCHE -->
+                <div id="search-container" class="search-container" style="display: none; padding: 0 20px; margin-bottom: 20px;">
+                    <input type="text" id="remote-search" placeholder="Tapez du texte ici..."
+                        style="width: 100%; padding: 15px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: white; font-size: 14px; outline: none;"
+                        oninput="send('input_text', this.value)">
+                </div>
+
+                <!-- VUE TRACKPAD -->
+                <div id="trackpad-view">
+                    <div id="trackpad">
+                        <div id="ripple"></div>
+                    </div>
+                </div>
+
+                <!-- VUE DPAD -->
+                <div id="dpad-view">
+                    <div class="modern-dpad">
+                        <div class="dpad-btn btn-up" onclick="send('nav_up')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z" />
+                            </svg>
+                        </div>
+                        <div class="dpad-btn btn-down" onclick="send('nav_down')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
+                            </svg>
+                        </div>
+                        <div class="dpad-btn btn-left" onclick="send('nav_left')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z" />
+                            </svg>
+                        </div>
+                        <div class="dpad-btn btn-right" onclick="send('nav_right')">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z" />
+                            </svg>
+                        </div>
+                        <div class="dpad-btn btn-ok" 
+                             ontouchstart="send('nav_ok_down')" 
+                             ontouchend="send('nav_ok_up')"
+                             ontouchcancel="send('nav_ok_up')">OK</div>
+                    </div>
+                </div>
+
+                <div class="back-row">
+                    <div class="ctrl-btn" style="width: 100%;" onclick="send('nav_back')">Retour</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODE LECTEUR -->
+        <div id="player-mode">
+            <div class="playback-main">
+                <div class="nav-btn" onclick="send('seek_back')">↺</div>
+                <div class="play-btn" id="main-play-btn" onclick="send('play_pause')">
+                    <!-- L'icône est injectée par le JS -->
+                    <svg viewBox="0 0 24 24">
+                        <path d="M6.5 5v14l11-7z" />
+                    </svg>
+                </div>
+                <div class="nav-btn" onclick="send('seek_forward')">↻</div>
+            </div>
+            <div class="progress-wrap">
+                <div class="progress-bg">
+                    <div id="progress-bar"></div>
+                </div>
+            </div>
+            <div class="controls-grid">
+                <div class="ctrl-btn" onclick="openTracks('audio')">Audio</div>
+                <div class="ctrl-btn" onclick="openTracks('subs')">Sous-titres</div>
+                <div class="ctrl-btn" onclick="send('vol_up')">Volume +</div>
+                <div class="ctrl-btn" onclick="send('vol_down')">Volume -</div>
+                <div class="ctrl-btn" style="grid-column: span 2; border-color: #ff4444; color: #ff4444;"
+                    onclick="send('stop')">Fermer la vidéo</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PANEL SELECTION PISTES -->
+    <div id="tracks-panel">
+        <div class="panel-header">
+            <h2 id="panel-title">Audio</h2>
+            <div class="close-panel" onclick="closeTracks()">×</div>
+        </div>
+        <div id="tracks-list" class="tracks-scroll">
+            <!-- Injecté par JS -->
+        </div>
+    </div>
+
+    <script>
+        const ws = new WebSocket(`ws://${location.host}`);
+        const body = document.body;
+        const ripple = document.getElementById('ripple');
+        const trackpad = document.getElementById('trackpad');
+        const panel = document.getElementById('tracks-panel');
+        const tracksList = document.getElementById('tracks-list');
+        const panelTitle = document.getElementById('panel-title');
+        const playBtn = document.getElementById('main-play-btn');
+
+        let currentTracks = { audio: [], subs: [] };
+        let lastX = 0, lastY = 0, startX = 0, startY = 0, startTime = 0;
+        const step = 45;
+
+        // --- GESTION TRACKPAD ---
+        let trackpadTimer = null;
+        let longPressActive = false;
+        let isSwiping = false;
+
+        trackpad.addEventListener('touchstart', (e) => {
+            startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+            lastX = startX; lastY = startY; startTime = Date.now();
+            isSwiping = false;
+            longPressActive = false;
+
+            ripple.style.left = startX - trackpad.offsetLeft + 'px';
+            ripple.style.top = startY - trackpad.offsetTop + 'px';
+            ripple.classList.remove('ripple-anim');
+            void ripple.offsetWidth; ripple.classList.add('ripple-anim');
+            
+            // On prépare l'appui long après 500ms d'immobilité
+            trackpadTimer = setTimeout(() => {
+                if (!isSwiping) {
+                    longPressActive = true;
+                    send('nav_ok_down');
+                }
+            }, 500);
+        });
+
+        trackpad.addEventListener('touchmove', (e) => {
+            const curX = e.touches[0].clientX, curY = e.touches[0].clientY;
+            const diffX = curX - lastX, diffY = curY - lastY;
+            
+            // Si on bouge de plus de 15px, on annule l'appui long/court pour ne faire que de la navigation
+            if (Math.abs(curX - startX) > 15 || Math.abs(curY - startY) > 15) {
+                isSwiping = true;
+                if (trackpadTimer) {
+                    clearTimeout(trackpadTimer);
+                    trackpadTimer = null;
+                }
+                if (longPressActive) {
+                    send('nav_ok_up');
+                    longPressActive = false;
+                }
+            }
+
+            if (isSwiping) {
+                if (Math.abs(diffX) > step) { send(diffX > 0 ? 'nav_right' : 'nav_left'); lastX = curX; lastY = curY; }
+                if (Math.abs(diffY) > step) { send(diffY > 0 ? 'nav_down' : 'nav_up'); lastY = curY; lastX = curX; }
+            }
+        });
+
+        trackpad.addEventListener('touchend', (e) => {
+            if (trackpadTimer) {
+                clearTimeout(trackpadTimer);
+                trackpadTimer = null;
+            }
+
+            if (!isSwiping) {
+                if (longPressActive) {
+                    // Fin de l'appui long
+                    send('nav_ok_up');
+                } else {
+                    // Clic court (tap)
+                    send('nav_ok');
+                }
+            }
+            isSwiping = false;
+            longPressActive = false;
+        });
+
+        // --- TRACKS MANAGEMENT ---
+        function openTracks(type) {
+            panelTitle.innerText = type === 'audio' ? 'Pistes Audio' : 'Sous-titres';
+            const tracks = type === 'audio' ? currentTracks.audio : currentTracks.subs;
+
+            let html = '';
+            if (type === 'subs') {
+                html += `<div class="track-item" onclick="setTrack('sub', 'no')">Désactiver</div>`;
+            }
+
+            html += tracks.map(t => `
+                <div class="track-item ${t.selected ? 'active' : ''}" onclick="setTrack('${type === 'audio' ? 'audio' : 'subtitle'}', ${t.id})">
+                    ${t.title || 'Inconnu'}
+                </div>
+            `).join('');
+
+            tracksList.innerHTML = html;
+            panel.classList.add('visible');
+        }
+
+        function closeTracks() { panel.classList.remove('visible'); }
+
+        function toggleMenu() {
+            const drawer = document.getElementById('menu-drawer');
+            const overlay = document.getElementById('menu-overlay');
+            drawer.classList.toggle('open');
+            overlay.style.display = drawer.classList.contains('open') ? 'block' : 'none';
+        }
+
+        function setMode(mode) {
+            body.classList.remove('mode-trackpad', 'mode-dpad');
+            body.classList.add('mode-' + mode);
+            document.getElementById('m-track').classList.toggle('active', mode === 'trackpad');
+            document.getElementById('m-dpad').classList.toggle('active', mode === 'dpad');
+            toggleMenu();
+            localStorage.setItem('remote-mode', mode);
+        }
+
+        // Restaurer le mode au chargement
+        const savedMode = localStorage.getItem('remote-mode') || 'trackpad';
+        setMode(savedMode);
+        setTimeout(toggleMenu, 100); // Pour fermer le menu auto après init
+
+        function setTrack(type, id) {
+            send('set_' + type, id);
+            closeTracks();
+        }
+
+        // --- COMMUNICATION ---
+        function send(action, value) {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action, value }));
+                if (navigator.vibrate) navigator.vibrate(40);
+            }
+        }
+
+        ws.onmessage = (e) => {
+            const data = JSON.parse(e.data);
+            if (data.type === 'status') {
+                const isPaused = data.paused;
+                body.classList.toggle('player-active', data.playerActive);
+                body.classList.toggle('player-inactive', !data.playerActive);
+
+                if (isPaused) {
+                    playBtn.classList.add('is-play');
+                    playBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6.5 5v14l11-7z"/></svg>';
+                } else {
+                    playBtn.classList.remove('is-play');
+                    playBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+                }
+            }
+            if (data.type === 'progress') {
+                document.getElementById('progress-bar').style.width = data.progress + '%';
+            }
+            if (data.type === 'tracks') {
+                currentTracks = { audio: data.audio, subs: data.subs };
+            }
+            if (data.type === 'input_focus') {
+                const container = document.getElementById('search-container');
+                const input = document.getElementById('remote-search');
+                if (data.isFocused) {
+                    container.style.display = 'block';
+                    input.value = data.value || '';
+                } else {
+                    container.style.display = 'none';
+                    input.value = '';
+                }
+            }
+        };
+    </script>
+</body>
+
+</html>
