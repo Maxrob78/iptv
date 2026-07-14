@@ -222,11 +222,11 @@ function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItem
         <div className="flex items-end justify-between mb-12 border-b border-white/[0.05] pb-8">
           <div className="flex items-center space-x-10">
             <div className="flex items-center space-x-4">
-              <FocusableCategoryTitle cat={cat} onRename={(newName: string) => renameCategory(cat.id, newName)} />
+              <FocusableCategoryTitle cat={cat} onRename={(newName: string) => renameCategory(cat.id, newName)} blockUp={catIdx === 0} />
               <span className="text-[9px] font-bold text-gray-600 border border-white/10 px-3 py-1 tracking-widest uppercase">{cat.items.length} INDEX</span>
             </div>
             <div className="flex items-center space-x-2 border-l border-white/5 pl-10">
-              <SortDropdown catId={cat.id} currentSort={cat.sortOrder} setSortOrder={setCategorySortOrder} />
+              <SortDropdown catId={cat.id} currentSort={cat.sortOrder} setSortOrder={setCategorySortOrder} blockUp={catIdx === 0} />
               <FocusableButton
                 focusKey={catIdx === 0 ? 'FIRST_FAV_BTN' : undefined}
                 blockUp={catIdx === 0}
@@ -284,7 +284,7 @@ function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItem
 
 // ─── Category Title ──────────────────────────────────────────────────────────
 
-function FocusableCategoryTitle({ cat, onRename }: any) {
+function FocusableCategoryTitle({ cat, onRename, blockUp }: any) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(cat.name);
 
@@ -302,7 +302,11 @@ function FocusableCategoryTitle({ cat, onRename }: any) {
   };
 
   const { ref, focused, focusKey } = useFocusable({
-    onEnterPress: handleRenameClick
+    onEnterPress: handleRenameClick,
+    onArrowPress: (direction) => {
+      if (blockUp && direction === 'up') return false;
+      return true;
+    }
   });
 
   if (isEditing) {
@@ -512,7 +516,7 @@ function ActionBtn({ focusKey: fk, onClick, icon, danger, onFocus, onBlur }: any
 
 // ─── Sort dropdown ────────────────────────────────────────────────────────────
 
-function SortDropdown({ catId, currentSort, setSortOrder }: any) {
+function SortDropdown({ catId, currentSort, setSortOrder, blockUp }: any) {
   const [isOpen, setIsOpen] = useState(false);
   const options = [
     { value: 'default', label: 'Défaut' },
@@ -534,6 +538,10 @@ function SortDropdown({ catId, currentSort, setSortOrder }: any) {
         setTimeout(() => setFocus(`SORT_OPT_${catId}_${indexToFocus}`), 50);
       }
     },
+    onArrowPress: (direction) => {
+      if (blockUp && direction === 'up') return false;
+      return true;
+    }
   });
 
   useEffect(() => {

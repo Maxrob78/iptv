@@ -376,7 +376,14 @@ function FocusableBackButton({ onClick }: any) {
   const { ref, focused, focusKey } = useFocusable({
     focusKey: 'BACK_BTN',
     onEnterPress: onClick,
-    onArrowPress: (direction) => direction !== 'up',
+    onArrowPress: (direction) => {
+      if (direction === 'up') return false;
+      if (direction === 'down') {
+        setFocus('RATE_SERIES_BTN');
+        return false;
+      }
+      return true;
+    },
     onFocus: () => {
       if (!(window as any).isMouseFocus) {
         setTimeout(() => {
@@ -408,6 +415,13 @@ function FocusableSeasonButton({ s, isActive, onClick, focusKey: customFocusKey 
   const { ref, focused, focusKey } = useFocusable({
     focusKey: customFocusKey,
     onEnterPress: onClick,
+    onArrowPress: (direction) => {
+      if (direction === 'up') {
+        setFocus('RATE_SERIES_BTN');
+        return false;
+      }
+      return true;
+    },
     onFocus: () => {
       if (!(window as any).isMouseFocus) {
         ref.current.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
@@ -521,15 +535,36 @@ function FocusableEpisodeCard({ ep, history, onClick, focusKey: customFocusKey }
 }
 
 function FocusableAction({ children, onClick, focusKey: customFocusKey }: any) {
-  const { ref, focused } = useFocusable({
+  const { ref, focused, focusKey } = useFocusable({
     focusKey: customFocusKey,
-    onEnterPress: onClick
+    onEnterPress: onClick,
+    onArrowPress: (direction) => {
+      if (direction === 'up') {
+        setFocus('BACK_BTN');
+        return false;
+      }
+      return true;
+    },
+    onFocus: () => {
+      if (!(window as any).isMouseFocus) {
+        ref.current?.scrollIntoView({ behavior: 'auto', block: 'center' });
+      }
+    }
   });
 
   return (
     <button 
       ref={ref}
       onClick={onClick}
+      onMouseEnter={(e: any) => {
+        if ((window as any).lastMouseX !== e.clientX || (window as any).lastMouseY !== e.clientY) {
+          (window as any).lastMouseX = e.clientX;
+          (window as any).lastMouseY = e.clientY;
+          (window as any).isMouseFocus = true;
+          setFocus(focusKey);
+          setTimeout(() => { (window as any).isMouseFocus = false; }, 50);
+        }
+      }}
       className={`flex items-center px-6 py-4 rounded-xl border backdrop-blur-xl transition-all duration-300 font-bold uppercase text-[10px] tracking-widest
                  ${focused ? 'bg-[#b5924d] text-black border-[#b5924d] scale-110 shadow-[0_0_40px_rgba(181,146,77,0.5)]' : 'bg-white/5 text-white border-white/10 hover:bg-white/10'}`}
     >
