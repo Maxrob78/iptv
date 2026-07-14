@@ -7,6 +7,7 @@ import { useProfileStore } from '../store/useProfileStore';
 import { useRatingStore } from '../store/useRatingStore';
 import { Sidebar } from '../components/Sidebar';
 import { ResumeModal } from '../components/ResumeModal';
+import { LoadingScreen } from '../components/LoadingScreen';
 import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 
 export default function Home() {
@@ -36,14 +37,48 @@ export default function Home() {
     setTimeout(() => {
       setFocus('HERO_RESUME');
     }, 200);
+    const getGroupedHistory = (historyObj: any) => {
+      const grouped = new Map();
+
+      Object.entries(historyObj).forEach(([id, item]: [string, any]) => {
+        if (item.type === 'live') return;
+        if (item.progress <= 1) return;
+
+        if (item.type === 'series') {
+          const sId = item.seriesId || item.id;
+          if (!grouped.has(sId)) {
+            grouped.set(sId, {
+              ...item,
+              id: sId,
+              title: item.seriesTitle || item.title,
+              cover: item.seriesCover || item.cover,
+              episodes: [id]
+            });
+          } else {
+            const existing = grouped.get(sId);
+            existing.episodes.push(id);
+            if (item.lastUpdated > existing.lastUpdated) {
+              existing.lastUpdated = item.lastUpdated;
+              existing.progress = item.progress;
+              // On peut aussi garder l'id du dernier épisode regardé si besoin
+            }
+          }
+        } else {
+          // Film
+          if (item.progress < 90) {
+            grouped.set(id, { id, ...item });
+          }
+        }
+      });
+
+      return Array.from(grouped.values()).sort((a: any, b: any) => b.lastUpdated - a.lastUpdated);
+    };
+
     const activeProfileId = useProfileStore.getState().activeProfile?.id;
     const historyKey = activeProfileId ? `iptv_playback_history_${activeProfileId}` : 'iptv_playback_history';
     const history = JSON.parse(localStorage.getItem(historyKey) || '{}');
-    const resumeList = Object.entries(history)
-      .map(([id, details]: [string, any]) => ({ id, ...details }))
-      .filter(item => item.progress > 1 && item.progress < 90 && item.type !== 'live')
-      .sort((a, b) => b.lastUpdated - a.lastUpdated);
-    setPlaybackHistory(resumeList);
+    
+    setPlaybackHistory(getGroupedHistory(history));
 
     // Écouteur global pour la progression MPV (Dashboard)
     if ((window as any).electronAPI && (window as any).electronAPI.on) {
@@ -61,11 +96,7 @@ export default function Home() {
           localStorage.setItem(key, JSON.stringify(currentHistory));
 
           // Rafraîchir la liste "À Poursuivre"
-          const newList = Object.entries(currentHistory)
-            .map(([id, details]: [string, any]) => ({ id, ...details }))
-            .filter(item => item.progress > 1 && item.progress < 90 && item.type !== 'live')
-            .sort((a, b) => b.lastUpdated - a.lastUpdated);
-          setPlaybackHistory(newList);
+          setPlaybackHistory(getGroupedHistory(currentHistory));
         }
       });
 
@@ -124,13 +155,71 @@ export default function Home() {
     const activeProfileId = useProfileStore.getState().activeProfile?.id;
     const historyKey = activeProfileId ? `iptv_playback_history_${activeProfileId}` : 'iptv_playback_history';
     const history = JSON.parse(localStorage.getItem(historyKey) || '{}');
-    delete history[id];
-    localStorage.setItem(historyKey, JSON.stringify(history));
-    setPlaybackHistory(prev => prev.filter(item => item.id !== id));
+    
+    let deleted = false;
+    Object.keys(history).forEach(key => {
+      if (key === id || history[key].seriesId === id || history[key].id === id) {
+        delete history[key];
+        deleted = true;
+      }
+    });
+
+    if (deleted) {
+      localStorage.setItem(historyKey, JSON.stringify(history));
+      
+      setPlaybackHistory(prev => {
+        const updated = prev.filter(item => item.id !== id);
+
+        setTimeout(() => {
+          if (updated.length > 0) {
+            setFocus(`HISTORY_ITEM_${updated[0].id}`);
+          } else {
+            setFocus('HERO_RESUME');
+          }
+        }, 100);
+
+        return updated;
+      });
+    }
   };
 
-  if (!mounted) return null;
 
+  const isSport = (name: string) => {
+    if (!name) return false;
+    const lower = name.toLowerCase();
+    return ['ufc', 'wwe', 'motogp', 'f1 ', 'formula 1', 'wrestlemania', 'sport', 'mma', 'boxing', 'champion', 'ligue', 'cup', 'wimbledon', 'rugby', 'nba', 'nfl'].some(k => lower.includes(k));
+  };
+
+  const recentMovies = React.useMemo(() => {
+    return [...movies]
+      .filter(m => !isSport(m.name))
+      .sort((a, b) => Number(b.added || 0) - Number(a.added || 0))
+      .slice(0, 20);
+  }, [movies]);
+
+  const topRatedMovies = React.useMemo(() => {
+    return [...movies]
+      // On filtre les films avec une note entre 7 et 9.5 pour éliminer les faux 10/10 (films obscurs)
+      .filter(m => !isSport(m.name) && Number(m.rating || 0) >= 7 && Number(m.rating || 0) <= 9.5)
+      // On trie par date d'ajout pour avoir les bons films les plus récents
+      .sort((a, b) => Number(b.added || 0) - Number(a.added || 0))
+      .slice(0, 20);
+  }, [movies]);
+
+  const recentSeries = React.useMemo(() => {
+    // On essaie d'abord de prendre les séries avec une note pour éviter les événements sportifs
+    const ratedSeries = series.filter(s => !isSport(s.name) && Number(s.rating || 0) > 0);
+    const sourceArray = ratedSeries.length > 10 ? ratedSeries : series.filter(s => !isSport(s.name));
+
+    return [...sourceArray]
+      .sort((a, b) => Number(b.last_modified || b.added || 0) - Number(a.last_modified || a.added || 0))
+      .slice(0, 20);
+  }, [series]);
+
+  const topChannels = React.useMemo(() => {
+    const sportsChannels = channels.filter(c => ['sport', 'bein', 'canal+', 'rmc', 'eurosport', 'dazn'].some(k => c.name?.toLowerCase().includes(k)));
+    return sportsChannels.length > 0 ? sportsChannels.slice(0, 20) : channels.slice(0, 20);
+  }, [channels]);
 
   const handlePlayItem = (item: any, type: 'live' | 'movie' | 'series', forcedStartTime?: number) => {
     if (launchingVideo) return; // Anti-double clic
@@ -196,6 +285,12 @@ export default function Home() {
     setTimeout(() => setLaunchingVideo(null), 3000);
   };
 
+  if (!mounted) return null;
+
+  if (loading && movies.length === 0) {
+    return <LoadingScreen />;
+  }
+
   return (
     <div className="flex-1 flex bg-[#050505] text-white min-h-screen font-['Inter'] selection:bg-[#b5924d]/30">
       <FocusContext.Provider value={focusKey}>
@@ -233,8 +328,8 @@ export default function Home() {
             {/* Background Poster for Hero */}
             {playbackHistory[0] ? (
               <div className="absolute inset-0 -z-10 overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-[#050505] via-[#050505]/70 to-transparent z-10" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-transparent z-10" />
+                <div className="absolute inset-0 bg-gradient-to-r from-[#030303] via-[#030303]/70 to-transparent z-10" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#030303] via-[#030303]/50 to-transparent z-10" />
                 <img
                   src={playbackHistory[0].cover}
                   className="w-full h-full object-cover object-top opacity-30 scale-105"
@@ -243,8 +338,8 @@ export default function Home() {
               </div>
             ) : movies[0] && (
               <div className="absolute inset-0 -z-10 overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-[#050505] via-[#050505]/60 to-transparent z-10" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-transparent z-10" />
+                <div className="absolute inset-0 bg-gradient-to-r from-[#030303] via-[#030303]/70 to-transparent z-10" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#030303] via-[#030303]/50 to-transparent z-10" />
                 <img
                   src={movies[Math.floor(Math.random() * 10)]?.stream_icon}
                   className="w-full h-full object-cover object-center opacity-20 blur-sm"
@@ -272,7 +367,7 @@ export default function Home() {
                 )}
               </h1>
 
-              {playbackHistory[0] && (
+              {playbackHistory[0] && playbackHistory[0].type !== 'series' && (
                 <div className="flex items-center space-x-4 mb-8">
                   <div className="h-[2px] w-32 bg-white/10 rounded-full overflow-hidden">
                     <div className="h-full bg-[#b5924d]" style={{ width: `${playbackHistory[0].progress}%` }} />
@@ -316,6 +411,7 @@ export default function Home() {
             {playbackHistory.length > 0 && (
               <DashboardRow
                 title="À Poursuivre"
+                focusKey="HISTORY_ROW"
                 items={playbackHistory.map(item => {
                   let foundCover = item.cover || item.seriesCover;
                   let foundName = item.seriesTitle || item.title;
@@ -350,27 +446,34 @@ export default function Home() {
                 onViewAll={null}
                 onRemove={handleRemoveHistory}
                 isHistory
+                rowAttribute="data-history-row"
               />
             )}
 
             <DashboardRow
-              title="Cinéma Récent"
-              items={movies.slice(0, 20)}
+              title="Derniers Ajouts Cinéma"
+              items={recentMovies}
               onClick={(movie: any) => handlePlayItem(movie, 'movie')}
               onViewAll={() => router.push('/movies')}
             />
 
             <DashboardRow
-              title="Signaux IPTV"
-              items={channels.slice(0, 20)}
+              title="Tendances Cinéma"
+              items={topRatedMovies}
+              onClick={(movie: any) => handlePlayItem(movie, 'movie')}
+            />
+
+            <DashboardRow
+              title="Sports & Événements"
+              items={topChannels}
               onClick={(ch: any) => handlePlayItem(ch, 'live')}
               onViewAll={() => router.push('/channels')}
               isChannel
             />
 
             <DashboardRow
-              title="Séries d'Exception"
-              items={series.slice(0, 20)}
+              title="Séries du Moment"
+              items={recentSeries}
               onClick={(item: any) => router.push(`/series/${item.series_id || item.id}`)}
               onViewAll={() => router.push('/series')}
               isSeries
@@ -429,17 +532,17 @@ function FocusableHeroButton({ children, onClick, primary, focusKey: customFocus
           setFocus(focusKey);
         }
       }}
-      className={`px-10 py-4 rounded-sm font-bold text-[9px] uppercase tracking-[0.4em] transition-all flex items-center space-x-3 outline-none
+      className={`px-10 py-4 rounded-xl font-bold text-[9px] uppercase tracking-[0.4em] transition-all duration-300 flex items-center space-x-3 outline-none relative overflow-hidden glass-reflection
                  ${primary
-          ? (focused ? 'bg-white text-black scale-105 shadow-[0_0_30px_rgba(181,146,77,0.4)]' : 'bg-[#b5924d] text-black')
-          : (focused ? 'bg-white text-black scale-105' : 'bg-white/5 text-white border border-white/10')}`}
+          ? (focused ? 'bg-gradient-to-r from-white to-gray-200 text-black scale-105 shadow-[0_0_40px_rgba(255,255,255,0.4)]' : 'bg-gradient-to-r from-[#b5924d] to-[#8a6e38] text-black shadow-[0_10px_30px_rgba(181,146,77,0.3)]')
+          : (focused ? 'bg-white text-black scale-105 shadow-[0_0_30px_rgba(255,255,255,0.2)]' : 'bg-white/5 backdrop-blur-xl text-white border border-white/10 hover:bg-white/10')}`}
     >
       {children}
     </button>
   );
 }
 
-function DashboardRow({ title, items, onClick, onViewAll, onRemove, isChannel = false, isSeries = false, isHistory = false }: any) {
+function DashboardRow({ title, items, onClick, onViewAll, onRemove, isChannel = false, isSeries = false, isHistory = false, rowAttribute }: any) {
   const rowRef = React.useRef<HTMLDivElement>(null);
 
   if (items.length === 0) return null;
@@ -451,8 +554,10 @@ function DashboardRow({ title, items, onClick, onViewAll, onRemove, isChannel = 
     }
   };
 
+  const rowProps = rowAttribute ? { [rowAttribute]: true } : {};
+
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-10 duration-[1500ms] group/row relative">
+    <div className="animate-in fade-in slide-in-from-bottom-10 duration-[1500ms] group/row relative" {...rowProps}>
       <div className="flex items-end justify-between mb-12 border-b border-white/[0.05] pb-6">
         <h2 className="text-sm font-medium uppercase tracking-[0.6em] text-gray-400">
           {title}
@@ -495,6 +600,10 @@ function DashboardRow({ title, items, onClick, onViewAll, onRemove, isChannel = 
             onRemove={onRemove}
             isChannel={isChannel}
             isHistory={isHistory}
+            // Focus key stable et prévisible pour l'historique : indispensable pour pouvoir
+            // rediriger le focus vers une carte précise après suppression d'un item
+            // (norigin-spatial-navigation ne peut retrouver un élément que via sa focusKey).
+            customFocusKey={isHistory ? `HISTORY_ITEM_${item.id}` : undefined}
           />
         ))}
       </div>
@@ -502,13 +611,14 @@ function DashboardRow({ title, items, onClick, onViewAll, onRemove, isChannel = 
   );
 }
 
-function FocusableCard({ item, onClick, onRemove, isChannel, isHistory }: any) {
+function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFocusKey }: any) {
   const rating = useRatingStore(state => {
     const profileId = useProfileStore.getState().activeProfile?.id || 'default';
     return state.ratings[profileId]?.[String(item.stream_id || item.series_id || item.id)]?.rating;
   });
 
   const { ref, focused, focusKey } = useFocusable({
+    focusKey: customFocusKey,
     onEnterPress: () => onClick(item),
     onFocus: () => {
       if (!(window as any).isMouseFocus) {
@@ -516,6 +626,33 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory }: any) {
       }
     }
   });
+
+  React.useEffect(() => {
+    if ((window as any).electronAPI && (window as any).electronAPI.send) {
+      const isVisible = focused && isHistory && !!onRemove;
+      (window as any).electronAPI.send('remote-visibility', { isHistoryFocus: isVisible });
+      
+      return () => {
+        if (isVisible) {
+          (window as any).electronAPI.send('remote-visibility', { isHistoryFocus: false });
+        }
+      };
+    }
+  }, [focused, isHistory, onRemove]);
+
+  React.useEffect(() => {
+    if (!focused || !isHistory || !onRemove) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Delete' || e.key === 'Backspace' || e.keyCode === 46 || e.keyCode === 8) {
+        e.stopPropagation();
+        onRemove(item.id);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [focused, isHistory, onRemove, item.id]);
 
   return (
     <div
@@ -530,11 +667,18 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory }: any) {
           setTimeout(() => { (window as any).isMouseFocus = false; }, 50);
         }
       }}
-      className={`flex-shrink-0 cursor-pointer group relative transition-all duration-300
-                 ${focused ? 'ring-[#b5924d] ring-4 scale-105 shadow-[0_40px_80px_rgba(181,146,77,0.4)] z-50' : 'ring-white/10 opacity-80'}
-                 ${isChannel ? 'w-48 h-48' : 'w-56 aspect-[3/4.5]'}`}
+      className={`flex-shrink-0 cursor-pointer group relative transition-all duration-500 glass-reflection isolate
+                 ${focused ? 'ring-[#b5924d] ring-4 scale-105 shadow-[0_40px_80px_rgba(181,146,77,0.3)] z-40 transform-gpu' : 'ring-white/5 ring-1 opacity-70 z-10'}
+                 ${isChannel ? 'w-48 h-48 rounded-2xl' : 'w-56 aspect-[3/4.5] rounded-xl'}`}
     >
-      <div className="w-full h-full rounded-sm overflow-hidden bg-[#0a0a0a] relative">
+      {isHistory && onRemove && (
+        <FocusableRemoveButton
+          onRemove={() => onRemove(item.id)}
+          parentFocused={focused}
+        />
+      )}
+
+      <div className={`w-full h-full overflow-hidden bg-[#0a0a0a] relative ${isChannel ? 'rounded-2xl' : 'rounded-xl'}`}>
         <img
           src={item.stream_icon || item.cover || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%23111'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='20' fill='%23555'%3ENo Image%3C/text%3E%3C/svg%3E"}
           onError={(e) => {
@@ -547,14 +691,7 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory }: any) {
           className={`w-full h-full transition-all duration-1000 ${focused ? 'scale-110 opacity-100' : 'opacity-80'} ${isChannel ? 'object-contain mb-4 filter drop-shadow-2xl' : 'object-cover'}`}
         />
 
-        {isHistory && onRemove && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onRemove(item.id); }}
-            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 hover:bg-[#b5924d] hover:text-black transition-all z-50 shadow-2xl"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        )}
+
 
         {!isChannel && (
           <div className={`absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent transition-all duration-500 flex flex-col justify-end p-8 ${focused ? 'opacity-100' : 'opacity-0'}`}>
@@ -570,7 +707,7 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory }: any) {
           </div>
         )}
 
-        {isHistory && item.progress && (
+        {isHistory && item.progress && item.type !== 'series' && (
           <div className="absolute bottom-0 left-0 w-full h-[2px] bg-white/10 z-20">
             <div className="h-full bg-[#b5924d] shadow-[0_0_10px_#b5924d]" style={{ width: `${item.progress}%` }} />
           </div>
@@ -583,5 +720,21 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory }: any) {
         )}
       </div>
     </div>
+  );
+}
+
+function FocusableRemoveButton({ onRemove, parentFocused }: any) {
+  return (
+    <button
+      tabIndex={-1}
+      onClick={(e) => { e.stopPropagation(); onRemove(); }}
+      className={`absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center transition-all z-[100] shadow-2xl backdrop-blur-md cursor-pointer
+                 bg-black/60 text-white border border-white/10 hover:bg-[#b5924d] hover:text-black
+                 ${parentFocused ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
   );
 }

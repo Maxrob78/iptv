@@ -25,9 +25,9 @@ export function Sidebar() {
     <FocusContext.Provider value={focusKey}>
       <aside 
         ref={ref}
-        className="w-20 lg:w-72 bg-[#050505] border-r border-white/5 flex flex-col fixed h-full z-40 transition-all duration-500 font-['Inter']"
+        className="w-20 lg:w-72 bg-black/40 backdrop-blur-3xl border-r border-[#b5924d]/10 flex flex-col fixed h-full z-40 transition-all duration-500 font-['Inter'] shadow-[20px_0_50px_rgba(0,0,0,0.5)]"
       >
-        <div className="p-8 flex justify-center lg:justify-start items-center space-x-4">
+        <div className="p-8 flex justify-center lg:justify-start items-center space-x-4 group">
           <div className="w-10 h-10 bg-gradient-to-br from-[#b5924d] to-[#7a5f2a] rounded-xl font-black flex items-center justify-center text-xl shadow-lg shadow-[#b5924d]/20 text-black font-serif italic">P</div>
           <div className="hidden lg:block">
               <h2 className="font-extralight text-xl tracking-[0.2em] text-white">PLATINUM</h2>
@@ -96,12 +96,13 @@ function NavButton({ icon, label, active = false, onClick, isFirst, isLast }: { 
       ref={ref}
       onClick={onClick}
       onMouseEnter={() => setFocus(focusKey)}
-      className={`w-full flex items-center space-x-5 px-6 py-4 rounded-2xl transition-all duration-500 group border
-                 ${focused ? 'bg-[#b5924d]/10 border-[#b5924d] scale-105 shadow-[0_0_20px_rgba(181,146,77,0.2)]' : 'border-transparent'}
-                 ${active ? 'bg-white/[0.03] text-white' : 'text-gray-500 hover:text-white hover:bg-white/[0.01]'}`}
+      className={`w-full flex items-center space-x-5 px-6 py-4 rounded-2xl transition-all duration-300 group border relative overflow-hidden
+                 ${focused ? 'bg-gradient-to-r from-[#b5924d]/20 to-transparent border-[#b5924d]/50 scale-[1.02] shadow-[0_0_30px_rgba(181,146,77,0.15)]' : 'border-transparent'}
+                 ${active ? 'bg-white/[0.05] text-white shadow-inner' : 'text-gray-400 hover:text-white hover:bg-white/[0.02]'}`}
     >
-      <span className={`text-xl transition-transform duration-500 ${active || focused ? 'scale-110 drop-shadow-[0_0_8px_rgba(181,146,77,0.5)] grayscale-0' : 'grayscale group-hover:grayscale-0'}`}>{icon}</span>
-      <span className={`hidden lg:block text-[11px] font-bold uppercase tracking-[0.3em] ${active || focused ? 'text-white' : 'text-gray-500'}`}>{label}</span>
+      <div className={`absolute inset-0 bg-gradient-to-r from-[#b5924d]/0 via-[#b5924d]/10 to-transparent translate-x-[-100%] transition-transform duration-700 ${focused ? 'translate-x-[100%]' : ''}`} />
+      <span className={`text-xl transition-all duration-300 z-10 ${active || focused ? 'scale-110 drop-shadow-[0_0_12px_rgba(181,146,77,0.8)] grayscale-0' : 'grayscale group-hover:grayscale-0'}`}>{icon}</span>
+      <span className={`hidden lg:block text-[11px] font-bold uppercase tracking-[0.3em] z-10 transition-colors ${active || focused ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>{label}</span>
       {(active || focused) && <div className="ml-auto w-1.5 h-1.5 bg-[#b5924d] rounded-full shadow-[0_0_10px_#b5924d]" />}
     </button>
   );

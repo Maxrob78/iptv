@@ -10,6 +10,7 @@ const KEY_MAP: Record<string, { key: string; keyCode: number }> = {
     nav_ok_down: { key: 'Enter', keyCode: 13 },
     nav_ok_up: { key: 'Enter', keyCode: 13 },
     nav_back: { key: 'Escape', keyCode: 27 },
+    nav_delete: { key: 'Delete', keyCode: 46 },
 };
 
 const DEBOUNCE_MS = 150;

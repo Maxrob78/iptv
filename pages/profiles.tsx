@@ -60,14 +60,53 @@ export default function ProfilesPage() {
   });
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Si on est en train d'ajouter/modifier un profil et qu'on appuie sur Escape ou Backspace
+      if ((e.key === 'Escape' || e.key === 'Backspace') && isAdding) {
+        // On vérifie si un input est actif, pour ne pas fermer le menu quand on efface du texte
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+          if (e.key === 'Backspace') return; // Laisse l'utilisateur effacer son texte
+          if (e.key === 'Escape') (active as HTMLElement).blur(); // Quitte l'input
+        }
+        
+        // Quitte le mode d'ajout et revient au menu
+        e.preventDefault();
+        e.stopPropagation(); // Empêche Norigin de traiter cet Escape
+        setIsAdding(false);
+        setEditingProfileId(null);
+        setNewName('');
+      } else if ((e.key === 'Escape' || e.key === 'Backspace') && !isAdding && isManaging) {
+         // Quitte le mode gestion
+         e.preventDefault();
+         e.stopPropagation(); // Empêche Norigin de traiter cet Escape
+         setIsManaging(false);
+         setTimeout(() => {
+           if (profiles.length > 0) setFocus(`PROFILE_CARD_${profiles[0].id}`);
+         }, 150);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [isAdding, isManaging]);
+
+  useEffect(() => {
     // Si aucun profil n'existe, on force l'ajout du premier
     if (profiles.length === 0 && !isAdding) {
       setIsAdding(true);
     }
     
-    // Si on ajoute un profil, on met le focus sur l'input (le premier élément de l'écran d'ajout)
-    // Sinon on met le focus sur l'écran des profils
-    setFocus('PROFILES_SCREEN');
+    // Petit délai pour laisser le temps au DOM de se construire avant de donner le focus
+    setTimeout(() => {
+      if (isAdding) {
+        setFocus('PROFILE_NAME_INPUT');
+      } else if (profiles.length > 0) {
+        setFocus(`PROFILE_CARD_${profiles[0].id}`);
+      } else {
+        setFocus('PROFILE_ADD_BUTTON');
+      }
+    }, 150);
   }, [profiles.length, isAdding]);
 
   const handleSelect = (profile: Profile) => {
@@ -115,7 +154,7 @@ export default function ProfilesPage() {
         <main ref={ref} className="w-full max-w-6xl px-10">
 
           {!isAdding ? (
-            <div className="animate-in fade-in zoom-in-95 duration-1000">
+            <div className="animate-in fade-in zoom-in-95 duration-300">
               <h1 className="text-5xl font-extralight tracking-tight text-center mb-20 opacity-90">
                 {isManaging ? 'Gérer les profils' : 'Qui regarde ?'}
               </h1>
@@ -170,7 +209,7 @@ export default function ProfilesPage() {
               )}
             </div>
           ) : (
-            <div className="animate-in slide-in-from-bottom-10 duration-1000 max-w-5xl mx-auto w-full">
+            <div className="animate-in slide-in-from-bottom-10 duration-300 max-w-5xl mx-auto w-full">
               <h1 className="text-4xl font-extralight tracking-[0.2em] mb-12 text-center uppercase opacity-50">
                   {editingProfileId ? 'Modifier le Profil' : 'Nouveau Profil'}
               </h1>
@@ -245,6 +284,7 @@ export default function ProfilesPage() {
 
 function FocusableProfileCard({ profile, isManaging, onSelect, onDelete }: any) {
   const { ref, focused, focusKey } = useFocusable({
+    focusKey: `PROFILE_CARD_${profile.id}`,
     onEnterPress: onSelect
   });
 
@@ -261,9 +301,8 @@ function FocusableProfileCard({ profile, isManaging, onSelect, onDelete }: any) 
       }}
       className="flex flex-col items-center space-y-6 group cursor-pointer relative"
     >
-      <div className={`w-44 h-44 rounded-sm overflow-hidden transition-all duration-500 ring-offset-8 ring-offset-[#050505]
-                     ${focused ? 'ring-4 ring-white scale-110 shadow-[0_0_50px_rgba(255,255,255,0.2)]' : 'ring-0 opacity-50'}
-                     ${isManaging ? 'opacity-100 ring-2 ring-white/20' : ''}`}>
+      <div className={`w-44 h-44 rounded-sm overflow-hidden transition-all duration-200 ring-offset-8 ring-offset-[#050505]
+                     ${focused ? 'ring-4 ring-white scale-110 shadow-[0_0_50px_rgba(255,255,255,0.2)] opacity-100' : (isManaging ? 'ring-2 ring-white/20 opacity-100 scale-100' : 'ring-0 opacity-50 scale-100')}`}>
         <img src={profile.avatar} loading="lazy" decoding="async" className="w-full h-full object-cover" alt="" />
       </div>
       <span className={`text-xl font-light tracking-wide transition-all ${focused ? 'text-white translate-y-2' : 'text-gray-500'}`}>
@@ -275,6 +314,7 @@ function FocusableProfileCard({ profile, isManaging, onSelect, onDelete }: any) 
 
 function FocusableAddButton({ onClick }: any) {
   const { ref, focused, focusKey } = useFocusable({
+    focusKey: 'PROFILE_ADD_BUTTON',
     onEnterPress: onClick
   });
 
@@ -291,8 +331,8 @@ function FocusableAddButton({ onClick }: any) {
       }}
       className="flex flex-col items-center space-y-6 group cursor-pointer"
     >
-      <div className={`w-44 h-44 rounded-sm border-2 border-dashed flex items-center justify-center transition-all duration-500
-                     ${focused ? 'bg-white/10 border-white scale-110' : 'border-white/10 opacity-30'}`}>
+      <div className={`w-44 h-44 rounded-sm border-2 border-dashed flex items-center justify-center transition-all duration-200
+                     ${focused ? 'bg-white/10 border-white scale-110 opacity-100' : 'border-white/10 opacity-30 scale-100'}`}>
         <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M12 4v16m8-8H4" /></svg>
       </div>
       <span className={`text-xl font-light tracking-wide transition-all ${focused ? 'text-white translate-y-2' : 'text-gray-500'}`}>
@@ -335,6 +375,7 @@ function FocusableAvatarList({ categories, selectedAvatar, setSelectedAvatar, on
 
 function FocusableAvatarOption({ url, isActive, onSelect, onArrowPress }: any) {
   const { ref, focused, focusKey } = useFocusable({
+    focusKey: `AVATAR_${url.replace(/[^a-zA-Z0-9]/g, '_')}`,
     onEnterPress: onSelect,
     onArrowPress,
     onFocus: () => {
@@ -364,8 +405,9 @@ function FocusableAvatarOption({ url, isActive, onSelect, onArrowPress }: any) {
   );
 }
 
-function FocusableButton({ label, primary, danger, onClick, onArrowPress }: any) {
+function FocusableButton({ label, primary, danger, onClick, onArrowPress, focusKey: customFocusKey }: any) {
   const { ref, focused, focusKey } = useFocusable({
+    focusKey: customFocusKey || `BTN_${label.replace(/\s+/g, '_').toUpperCase()}`,
     onEnterPress: onClick,
     onArrowPress
   });

@@ -164,11 +164,24 @@ function startRemoteServer(mainWindow) {
 // -----------------------------------
 
 function createWindow() {
+  const splashWindow = new BrowserWindow({
+    width: 1280,
+    height: 720,
+    fullscreen: true,
+    frame: false,
+    backgroundColor: '#050505',
+    alwaysOnTop: true,
+    transparent: true
+  });
+  splashWindow.loadFile(path.join(__dirname, 'splash.html'));
+
   const mainWindow = new BrowserWindow({
     width: 1280,
     height: 720,
     minWidth: 960,
     minHeight: 600,
+    fullscreen: true,
+    show: false,
     frame: false, // On retire la bordure native Windows (Netflix style)
     backgroundColor: '#141414',
     webPreferences: {
@@ -196,6 +209,16 @@ function createWindow() {
     // En production, on charge l'export statique Next.js
     mainWindow.loadFile(path.join(__dirname, '../out/index.html'));
   }
+
+  mainWindow.once('ready-to-show', () => {
+    // Petit délai pour laisser React Next.js s'initialiser et afficher son propre chargement fluide
+    setTimeout(() => {
+      if (!splashWindow.isDestroyed()) {
+        splashWindow.close();
+      }
+      mainWindow.show();
+    }, 1500);
+  });
 
   // Gestion des contrôles personnalisés (titlebar)
   ipcMain.on('window-min', () => mainWindow.minimize());
@@ -516,6 +539,12 @@ app.whenReady().then(() => {
       port: remotePort,
       url: `http://${ip}:${remotePort}`
     };
+  });
+
+  ipcMain.on('remote-visibility', (event, data) => {
+    if (typeof broadcast === 'function') {
+      broadcast({ type: 'visibility', isHistoryFocus: data.isHistoryFocus });
+    }
   });
 
   ipcMain.handle('select-files', async () => {

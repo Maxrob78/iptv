@@ -4,6 +4,7 @@ import { init } from '@noriginmedia/norigin-spatial-navigation';
 init();
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import { LoadingScreen } from './LoadingScreen';
 import { useAuthStore, authStorage } from '../store/useAuthStore';
 import { useDataStore } from '../store/useDataStore';
 import { useProfileStore } from '../store/useProfileStore';
@@ -169,7 +170,7 @@ export default function AppWrapper({ Component, pageProps }: any) {
     }
   }, [hydrated, mounted, router, activeProfile]);
 
-  if (!mounted) return <div className="bg-[#141414] min-h-screen" />;
+  if (!mounted || !hydrated) return <LoadingScreen title="Platinum Studio Edition" subtitle="Initialisation du système..." />;
 
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col pt-8 animate-in fade-in duration-1000">
@@ -194,46 +195,7 @@ export default function AppWrapper({ Component, pageProps }: any) {
       <Component {...pageProps} />
 
       {/* Écran de chargement global — Refresh Catalogue */}
-      {isRefreshing && (
-        <div className="fixed inset-0 z-[9998] bg-[#050505] flex items-center justify-center animate-in fade-in duration-500">
-          {/* Ambient glow */}
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#b5924d]/8 blur-[200px] rounded-full animate-pulse" />
-          </div>
-
-          <div className="relative flex flex-col items-center gap-16">
-            {/* Logo animé */}
-            <div className="relative">
-              <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-[#b5924d] to-[#7a5f2a] flex items-center justify-center shadow-[0_0_80px_rgba(181,146,77,0.4)] animate-pulse">
-                <span className="text-4xl font-black text-black font-serif italic">P</span>
-              </div>
-              {/* Orbit ring */}
-              <div className="absolute -inset-4 rounded-full border border-[#b5924d]/20 animate-spin" style={{ animationDuration: '3s' }} />
-              <div className="absolute -inset-8 rounded-full border border-[#b5924d]/10 animate-spin" style={{ animationDuration: '5s', animationDirection: 'reverse' }} />
-            </div>
-
-            {/* Texte */}
-            <div className="flex flex-col items-center gap-4">
-              <h2 className="text-[11px] font-bold uppercase tracking-[0.6em] text-[#b5924d]">Mise à jour du catalogue</h2>
-              <p className="text-[9px] font-light uppercase tracking-[0.4em] text-white/30">Synchronisation en cours...</p>
-            </div>
-
-            {/* Barre de progression animée */}
-            <div className="w-64 h-[1px] bg-white/5 relative overflow-hidden rounded-full">
-              <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-transparent via-[#b5924d] to-transparent w-1/2 animate-[shimmer_1.5s_ease-in-out_infinite]" />
-            </div>
-
-            {/* Labels */}
-            <div className="flex items-center gap-8 text-[8px] uppercase tracking-[0.4em] text-white/20 font-medium">
-              <span>Films</span>
-              <div className="w-1 h-1 bg-[#b5924d]/40 rounded-full" />
-              <span>Chaînes</span>
-              <div className="w-1 h-1 bg-[#b5924d]/40 rounded-full" />
-              <span>Séries</span>
-            </div>
-          </div>
-        </div>
-      )}
+      {isRefreshing && <LoadingScreen title="Mise à jour du catalogue" subtitle="Synchronisation en cours..." />}
 
       {/* Overlay succès — affiche le nombre de vidéos */}
       {showSuccess && !isRefreshing && (

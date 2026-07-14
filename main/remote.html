@@ -11,8 +11,10 @@
     <meta name="theme-color" content="#050505">
     <meta name="apple-mobile-web-app-title" content="Platinum">
     <link rel="manifest" href="/manifest.json">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%23050505'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-weight='900' font-size='260' font-style='italic' fill='%23b5924d'%3EP%3C/text%3E%3C/svg%3E">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%23050505'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-weight='900' font-size='260' font-style='italic' fill='%23b5924d'%3EP%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%23050505'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-weight='900' font-size='260' font-style='italic' fill='%23b5924d'%3EP%3C/text%3E%3C/svg%3E">
+    <link rel="icon"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%23050505'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-weight='900' font-size='260' font-style='italic' fill='%23b5924d'%3EP%3C/text%3E%3C/svg%3E">
     <style>
         :root {
             --gold: #b5924d;
@@ -35,6 +37,7 @@
             font-family: 'Inter', -apple-system, sans-serif;
             overflow: hidden;
             height: 100vh;
+            height: 100dvh;
         }
 
         .header {
@@ -100,6 +103,7 @@
         .container {
             padding: 20px;
             height: calc(100vh - 60px);
+            height: calc(100dvh - 60px);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -210,6 +214,7 @@
             border-radius: 50%;
             transition: all 0.2s;
             color: rgba(255, 255, 255, 0.4);
+            touch-action: none;
         }
 
         .dpad-btn:active {
@@ -254,6 +259,7 @@
             font-size: 14px;
             box-shadow: 0 0 30px rgba(181, 146, 77, 0.3);
             border: none;
+            cursor: pointer;
         }
 
         .back-row {
@@ -485,10 +491,36 @@
                 opacity: 0;
             }
         }
+
+        /* --- ETAT CONNEXION --- */
+        #conn-status {
+            position: fixed;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-40px);
+            background: rgba(200, 60, 60, 0.15);
+            border: 1px solid rgba(200, 60, 60, 0.4);
+            color: #ff6b6b;
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            padding: 8px 16px;
+            border-radius: 20px;
+            z-index: 2100;
+            transition: transform 0.3s ease;
+            pointer-events: none;
+        }
+
+        #conn-status.visible {
+            transform: translateX(-50%) translateY(0);
+        }
     </style>
 </head>
 
 <body class="player-inactive mode-trackpad">
+    <div id="conn-status">Connexion perdue — reconnexion...</div>
+
     <div class="menu-overlay" id="menu-overlay" onclick="toggleMenu()"></div>
 
     <div id="menu-drawer">
@@ -523,10 +555,11 @@
         <div id="nav-mode">
             <div class="nav-container">
                 <!-- ZONE DE RECHERCHE -->
-                <div id="search-container" class="search-container" style="display: none; padding: 0 20px; margin-bottom: 20px;">
+                <div id="search-container" class="search-container"
+                    style="display: none; padding: 0 20px; margin-bottom: 20px;">
                     <input type="text" id="remote-search" placeholder="Tapez du texte ici..."
                         style="width: 100%; padding: 15px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: white; font-size: 14px; outline: none;"
-                        oninput="send('input_text', this.value)">
+                        oninput="onSearchInput(this.value)">
                 </div>
 
                 <!-- VUE TRACKPAD -->
@@ -559,15 +592,16 @@
                                 <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z" />
                             </svg>
                         </div>
-                        <div class="dpad-btn btn-ok" 
-                             ontouchstart="send('nav_ok_down')" 
-                             ontouchend="send('nav_ok_up')"
-                             ontouchcancel="send('nav_ok_up')">OK</div>
+                        <div class="dpad-btn btn-ok" id="btn-dpad-ok">OK</div>
                     </div>
                 </div>
 
-                <div class="back-row">
-                    <div class="ctrl-btn" style="width: 100%;" onclick="send('nav_back')">Retour</div>
+                <div class="back-row" style="display: flex; gap: 10px;">
+                    <div class="ctrl-btn" style="flex: 1; display: flex; justify-content: center; align-items: center;"
+                        onclick="send('nav_back')">Retour</div>
+                    <div id="btn-retirer" class="ctrl-btn"
+                        style="flex: 1; background: rgba(181,146,77,0.1); color: #b5924d; border-color: rgba(181,146,77,0.3); display: none; justify-content: center; align-items: center;"
+                        onclick="send('nav_delete')">Retirer</div>
                 </div>
             </div>
         </div>
@@ -612,7 +646,6 @@
     </div>
 
     <script>
-        const ws = new WebSocket(`ws://${location.host}`);
         const body = document.body;
         const ripple = document.getElementById('ripple');
         const trackpad = document.getElementById('trackpad');
@@ -620,10 +653,60 @@
         const tracksList = document.getElementById('tracks-list');
         const panelTitle = document.getElementById('panel-title');
         const playBtn = document.getElementById('main-play-btn');
+        const connStatus = document.getElementById('conn-status');
 
         let currentTracks = { audio: [], subs: [] };
-        let lastX = 0, lastY = 0, startX = 0, startY = 0, startTime = 0;
+        let lastX = 0, lastY = 0, startX = 0, startY = 0;
         const step = 45;
+
+        // --- ECHAPPEMENT HTML (sécurité contre injection via titres de pistes) ---
+        function esc(str) {
+            return String(str ?? '').replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        }
+
+        // --- WEBSOCKET AVEC RECONNEXION AUTOMATIQUE ---
+        let ws = null;
+        let reconnectDelay = 1000;
+        const reconnectDelayMax = 10000;
+        let reconnectTimer = null;
+        let connLostTimer = null;
+
+        function connect() {
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${proto}//${location.host}`);
+
+            ws.onopen = () => {
+                reconnectDelay = 1000;
+                clearTimeout(connLostTimer);
+                connStatus.classList.remove('visible');
+            };
+
+            ws.onmessage = handleMessage;
+
+            ws.onclose = () => {
+                scheduleReconnect();
+            };
+
+            ws.onerror = () => {
+                ws.close();
+            };
+        }
+
+        function scheduleReconnect() {
+            // On n'affiche l'alerte que si la coupure dure un peu (évite un flash sur un simple refresh de page)
+            clearTimeout(connLostTimer);
+            connLostTimer = setTimeout(() => connStatus.classList.add('visible'), 1500);
+
+            clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(() => {
+                connect();
+                reconnectDelay = Math.min(reconnectDelay * 1.5, reconnectDelayMax);
+            }, reconnectDelay);
+        }
+
+        connect();
 
         // --- GESTION TRACKPAD ---
         let trackpadTimer = null;
@@ -632,7 +715,7 @@
 
         trackpad.addEventListener('touchstart', (e) => {
             startX = e.touches[0].clientX; startY = e.touches[0].clientY;
-            lastX = startX; lastY = startY; startTime = Date.now();
+            lastX = startX; lastY = startY;
             isSwiping = false;
             longPressActive = false;
 
@@ -640,7 +723,7 @@
             ripple.style.top = startY - trackpad.offsetTop + 'px';
             ripple.classList.remove('ripple-anim');
             void ripple.offsetWidth; ripple.classList.add('ripple-anim');
-            
+
             // On prépare l'appui long après 500ms d'immobilité
             trackpadTimer = setTimeout(() => {
                 if (!isSwiping) {
@@ -653,7 +736,7 @@
         trackpad.addEventListener('touchmove', (e) => {
             const curX = e.touches[0].clientX, curY = e.touches[0].clientY;
             const diffX = curX - lastX, diffY = curY - lastY;
-            
+
             // Si on bouge de plus de 15px, on annule l'appui long/court pour ne faire que de la navigation
             if (Math.abs(curX - startX) > 15 || Math.abs(curY - startY) > 15) {
                 isSwiping = true;
@@ -673,7 +756,7 @@
             }
         });
 
-        trackpad.addEventListener('touchend', (e) => {
+        trackpad.addEventListener('touchend', () => {
             if (trackpadTimer) {
                 clearTimeout(trackpadTimer);
                 trackpadTimer = null;
@@ -692,19 +775,40 @@
             longPressActive = false;
         });
 
+        // --- BOUTON OK DU D-PAD : SOURIS + TACTILE (pointer events unifiés) ---
+        const dpadOkBtn = document.getElementById('btn-dpad-ok');
+        let dpadOkDown = false;
+
+        dpadOkBtn.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            dpadOkDown = true;
+            send('nav_ok_down');
+        });
+
+        function releaseDpadOk() {
+            if (dpadOkDown) {
+                dpadOkDown = false;
+                send('nav_ok_up');
+            }
+        }
+        dpadOkBtn.addEventListener('pointerup', releaseDpadOk);
+        dpadOkBtn.addEventListener('pointercancel', releaseDpadOk);
+        dpadOkBtn.addEventListener('pointerleave', releaseDpadOk);
+
         // --- TRACKS MANAGEMENT ---
         function openTracks(type) {
             panelTitle.innerText = type === 'audio' ? 'Pistes Audio' : 'Sous-titres';
             const tracks = type === 'audio' ? currentTracks.audio : currentTracks.subs;
+            const noneSelected = type === 'subs' && !tracks.some(t => t.selected);
 
             let html = '';
             if (type === 'subs') {
-                html += `<div class="track-item" onclick="setTrack('sub', 'no')">Désactiver</div>`;
+                html += `<div class="track-item ${noneSelected ? 'active' : ''}" onclick="setTrack('sub', 'no')">Désactiver</div>`;
             }
 
             html += tracks.map(t => `
-                <div class="track-item ${t.selected ? 'active' : ''}" onclick="setTrack('${type === 'audio' ? 'audio' : 'subtitle'}', ${t.id})">
-                    ${t.title || 'Inconnu'}
+                <div class="track-item ${t.selected ? 'active' : ''}" onclick="setTrack('${type === 'audio' ? 'audio' : 'subtitle'}', ${JSON.stringify(t.id)})">
+                    ${esc(t.title) || 'Inconnu'}
                 </div>
             `).join('');
 
@@ -721,66 +825,89 @@
             overlay.style.display = drawer.classList.contains('open') ? 'block' : 'none';
         }
 
-        function setMode(mode) {
+        // Applique uniquement les classes/état visuel du mode (sans toucher au tiroir de menu)
+        function applyModeUI(mode) {
             body.classList.remove('mode-trackpad', 'mode-dpad');
             body.classList.add('mode-' + mode);
             document.getElementById('m-track').classList.toggle('active', mode === 'trackpad');
             document.getElementById('m-dpad').classList.toggle('active', mode === 'dpad');
+        }
+
+        // Appelé depuis un clic utilisateur dans le menu : applique le mode ET referme le tiroir
+        function setMode(mode) {
+            applyModeUI(mode);
             toggleMenu();
             localStorage.setItem('remote-mode', mode);
         }
 
-        // Restaurer le mode au chargement
+        // Restaurer le mode au chargement, sans ouvrir/fermer le menu (évite le flash visuel)
         const savedMode = localStorage.getItem('remote-mode') || 'trackpad';
-        setMode(savedMode);
-        setTimeout(toggleMenu, 100); // Pour fermer le menu auto après init
+        applyModeUI(savedMode);
 
         function setTrack(type, id) {
             send('set_' + type, id);
             closeTracks();
         }
 
+        // --- RECHERCHE AVEC DEBOUNCE ---
+        let searchDebounce = null;
+        function onSearchInput(value) {
+            clearTimeout(searchDebounce);
+            searchDebounce = setTimeout(() => send('input_text', value), 150);
+        }
+
         // --- COMMUNICATION ---
         function send(action, value) {
-            if (ws.readyState === WebSocket.OPEN) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ action, value }));
                 if (navigator.vibrate) navigator.vibrate(40);
             }
         }
 
-        ws.onmessage = (e) => {
-            const data = JSON.parse(e.data);
-            if (data.type === 'status') {
-                const isPaused = data.paused;
-                body.classList.toggle('player-active', data.playerActive);
-                body.classList.toggle('player-inactive', !data.playerActive);
+        function handleMessage(event) {
+            try {
+                const data = JSON.parse(event.data);
 
-                if (isPaused) {
-                    playBtn.classList.add('is-play');
-                    playBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6.5 5v14l11-7z"/></svg>';
-                } else {
-                    playBtn.classList.remove('is-play');
-                    playBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+                if (data.type === 'visibility') {
+                    const btn = document.getElementById('btn-retirer');
+                    if (btn) btn.style.display = data.isHistoryFocus ? 'flex' : 'none';
+                    return;
                 }
-            }
-            if (data.type === 'progress') {
-                document.getElementById('progress-bar').style.width = data.progress + '%';
-            }
-            if (data.type === 'tracks') {
-                currentTracks = { audio: data.audio, subs: data.subs };
-            }
-            if (data.type === 'input_focus') {
-                const container = document.getElementById('search-container');
-                const input = document.getElementById('remote-search');
-                if (data.isFocused) {
-                    container.style.display = 'block';
-                    input.value = data.value || '';
-                } else {
-                    container.style.display = 'none';
-                    input.value = '';
+
+                if (data.type === 'status') {
+                    const isPaused = data.paused;
+                    body.classList.toggle('player-active', data.playerActive);
+                    body.classList.toggle('player-inactive', !data.playerActive);
+
+                    if (isPaused) {
+                        playBtn.classList.add('is-play');
+                        playBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6.5 5v14l11-7z"/></svg>';
+                    } else {
+                        playBtn.classList.remove('is-play');
+                        playBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+                    }
                 }
+                if (data.type === 'progress') {
+                    document.getElementById('progress-bar').style.width = data.progress + '%';
+                }
+                if (data.type === 'tracks') {
+                    currentTracks = { audio: data.audio, subs: data.subs };
+                }
+                if (data.type === 'input_focus') {
+                    const container = document.getElementById('search-container');
+                    const input = document.getElementById('remote-search');
+                    if (data.isFocused) {
+                        container.style.display = 'block';
+                        input.value = data.value || '';
+                    } else {
+                        container.style.display = 'none';
+                        input.value = '';
+                    }
+                }
+            } catch (e) {
+                console.error("Erreur WS message:", e);
             }
-        };
+        }
     </script>
 </body>
 
