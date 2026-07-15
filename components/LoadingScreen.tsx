@@ -37,8 +37,8 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
           <div className="absolute inset-0 rounded-full border border-[#b5924d]/15 border-t-[#b5924d] border-b-[#b5924d]/50 animate-[spin_3s_cubic-bezier(0.68,-0.55,0.265,1.55)_infinite]" />
           
           <div className="relative w-[100px] h-[100px] rounded-[30px] bg-gradient-to-br from-[#b5924d]/40 to-black/80 backdrop-blur-xl border border-[#b5924d]/30 shadow-[0_20px_50px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1),0_0_80px_rgba(181,146,77,0.3)] flex items-center justify-center animate-[float_6s_ease-in-out_infinite] z-20 overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/15 to-transparent pointer-events-none" />
-            <span className="text-[48px] font-black bg-gradient-to-br from-white to-[#b5924d] text-transparent bg-clip-text font-serif italic drop-shadow-[0_0_30px_rgba(181,146,77,0.5)]">P</span>
+            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/20 pointer-events-none rounded-[30px]" />
+            <span className="relative z-10 text-[48px] font-black bg-gradient-to-br from-white to-[#b5924d] text-transparent bg-clip-text font-serif italic drop-shadow-[0_0_30px_rgba(181,146,77,0.5)] px-2">P</span>
           </div>
         </div>
 

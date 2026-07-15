@@ -13,7 +13,7 @@ import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spat
 export default function Home() {
   const router = useRouter();
   const { isLoggedIn, serverUrl, username, password } = useAuthStore();
-  const { movies, channels, series, setMovies, setChannels, setSeries, checkAndClearCache, isRefreshing, setIsRefreshing } = useDataStore();
+  const { movies, channels, series, setMovies, setChannels, setSeries, checkAndClearCache, isRefreshing, setIsRefreshing, hydrateHeavyData } = useDataStore();
   const [mounted, setMounted] = useState(false);
   const [launchingVideo, setLaunchingVideo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -112,6 +112,14 @@ export default function Home() {
     const fetchData = async () => {
       setLoading(true);
       checkAndClearCache();
+
+      await hydrateHeavyData();
+      const state = useDataStore.getState();
+      if (state.movies.length > 0 && state.channels.length > 0 && state.series.length > 0 && !isRefreshing) {
+        setLoading(false);
+        setIsRefreshing(false);
+        return;
+      }
 
       // On exécute les requêtes de manière SÉQUENTIELLE (une par une).
       // Les serveurs IPTV bloquent souvent les requêtes simultanées (anti-flood).
@@ -328,21 +336,21 @@ export default function Home() {
             {/* Background Poster for Hero */}
             {playbackHistory[0] ? (
               <div className="absolute inset-0 -z-10 overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-[#030303] via-[#030303]/70 to-transparent z-10" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#030303] via-[#030303]/50 to-transparent z-10" />
+                <div className="absolute inset-0 bg-gradient-to-r from-[#030303]/90 via-[#030303]/30 to-transparent z-10" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#030303] via-transparent to-transparent z-10" />
                 <img
                   src={playbackHistory[0].cover}
-                  className="w-full h-full object-cover object-top opacity-90 scale-105"
+                  className="w-full h-full object-cover object-top opacity-100 scale-105"
                   alt=""
                 />
               </div>
             ) : movies[0] && (
               <div className="absolute inset-0 -z-10 overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-[#030303] via-[#030303]/70 to-transparent z-10" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#030303] via-[#030303]/50 to-transparent z-10" />
+                <div className="absolute inset-0 bg-gradient-to-r from-[#030303]/90 via-[#030303]/30 to-transparent z-10" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#030303] via-transparent to-transparent z-10" />
                 <img
                   src={movies[Math.floor(Math.random() * 10)]?.stream_icon}
-                  className="w-full h-full object-cover object-center opacity-50 blur-sm"
+                  className="w-full h-full object-cover object-top opacity-100 scale-105"
                   alt=""
                 />
               </div>
