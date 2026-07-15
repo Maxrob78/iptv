@@ -28,7 +28,16 @@ export default function Home() {
   });
 
   const { ref, focusKey } = useFocusable({
-    focusKey: 'DASHBOARD'
+    focusKey: 'MAIN_CONTENT',
+    saveLastFocusedChild: true,
+    trackChildren: true,
+    onArrowPress: (direction) => {
+      if (direction === 'left') {
+        setFocus('NAV_INDEX');
+        return false;
+      }
+      return true;
+    }
   });
 
   useEffect(() => {
@@ -301,8 +310,8 @@ export default function Home() {
 
   return (
     <div className="flex-1 flex bg-[#050505] text-white min-h-screen font-['Inter'] selection:bg-[#b5924d]/30">
+      <Sidebar />
       <FocusContext.Provider value={focusKey}>
-        <Sidebar />
         <main ref={ref} className="ml-20 lg:ml-72 flex-1 relative overflow-y-auto no-scrollbar">
 
           {/* Notification Overlay */}
@@ -517,7 +526,16 @@ function FocusableHeroButton({ children, onClick, primary, focusKey: customFocus
   const { ref, focused, focusKey } = useFocusable({
     focusKey: customFocusKey,
     onEnterPress: onClick,
-    onArrowPress: (direction) => direction !== 'up',
+    onArrowPress: (direction) => {
+      if (direction === 'up') return false;
+      if (direction === 'left') {
+        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
+          setFocus('NAV_INDEX');
+          return false;
+        }
+      }
+      return true;
+    },
     onFocus: () => {
       if (!(window as any).isMouseFocus) {
         setTimeout(() => {
@@ -628,6 +646,15 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFo
   const { ref, focused, focusKey } = useFocusable({
     focusKey: customFocusKey,
     onEnterPress: () => onClick(item),
+    onArrowPress: (direction) => {
+      if (direction === 'left') {
+        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
+          setFocus('NAV_INDEX');
+          return false;
+        }
+      }
+      return true;
+    },
     onFocus: () => {
       if (!(window as any).isMouseFocus) {
         ref.current.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });

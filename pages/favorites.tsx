@@ -36,14 +36,25 @@ export default function FavoritesPage() {
     isOpen: false, item: null, time: 0,
   });
 
-  const { ref, focusKey } = useFocusable({ focusKey: 'FAVORITES', isFocusBoundary: true });
+  const { ref, focusKey } = useFocusable({ 
+    focusKey: 'MAIN_CONTENT', 
+    saveLastFocusedChild: true,
+    trackChildren: true,
+    onArrowPress: (direction) => {
+      if (direction === 'left') {
+        setFocus('NAV_FAVORITES');
+        return false;
+      }
+      return true;
+    }
+  });
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (mounted) setTimeout(() => setFocus('FIRST_FAV_BTN'), 400);
+    if (mounted) setTimeout(() => setFocus('FIRST_FAV_ITEM'), 400);
   }, [mounted]);
 
   if (!mounted) return null;
@@ -83,9 +94,9 @@ export default function FavoritesPage() {
   };
 
   return (
-    <div className="flex-1 flex bg-[#050505] min-h-screen text-white font-['Inter']">
+    <div className="flex-1 flex bg-[#050505] min-h-screen text-white font-['Inter'] selection:bg-[#b5924d]/30">
+      <Sidebar />
       <FocusContext.Provider value={focusKey}>
-        <Sidebar />
         <main ref={ref} className="ml-20 lg:ml-72 flex-1 relative overflow-y-auto no-scrollbar pb-40">
 
           {launchingVideo && (
@@ -228,7 +239,6 @@ function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItem
             <div className="flex items-center space-x-2 border-l border-white/5 pl-10">
               <SortDropdown catId={cat.id} currentSort={cat.sortOrder} setSortOrder={setCategorySortOrder} blockUp={catIdx === 0} />
               <FocusableButton
-                focusKey={catIdx === 0 ? 'FIRST_FAV_BTN' : undefined}
                 blockUp={catIdx === 0}
                 onClick={() => moveCategory(cat.id, 'up')}
                 icon={<svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 15l7-7 7 7" /></svg>} />
@@ -268,11 +278,12 @@ function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItem
               <p className="text-gray-700 text-[10px] font-medium uppercase tracking-[0.6em]">Registre Vierge</p>
             </div>
           ) : (
-            sortedItems.map((item: any) => (
+            sortedItems.map((item: any, idx: number) => (
               <FocusableFavoriteCard
                 key={item.stream_id || item.series_id || item.id}
                 item={item} catId={cat.id} onPlay={handlePlay}
                 onRemove={removeItemFromCategory} onMove={moveItemInCategory}
+                isFirstItem={catIdx === 0 && idx === 0}
               />
             ))
           )}
@@ -374,16 +385,18 @@ function FocusableButton({ onClick, icon, label, variant, focusKey: customFocusK
 //   - `active` is set to false by children's onBlur callbacks.
 //   - Mouse enter/leave on the wrapper also sets `active` + calls setFocus on the image.
 
-function FocusableFavoriteCard({ item, catId, onPlay, onRemove, onMove }: any) {
+function FocusableFavoriteCard({ item, catId, isFirstItem, onPlay, onRemove, onMove }: any) {
   const id = item.stream_id || item.series_id || item.id;
   const isChannel = item.stream_type === 'live' || (!item.series_id && !item.container_extension && item.type !== 'series' && item.type !== 'movie');
   const [active, setActive] = useState(false);
+
+  const imgKey = isFirstItem ? 'FIRST_FAV_ITEM' : `IMG_${id}`;
 
   // Wrapper gives us the focusKey context for children — but we DON'T use its `focused`
   // because the actual spatial focus lands on IMG_${id}, not on CARD_${id}.
   const { ref: wrapRef, focusKey } = useFocusable({
     focusKey: `CARD_${id}`,
-    preferredChildFocusKey: `IMG_${id}`,
+    preferredChildFocusKey: imgKey,
   });
 
   const activate = () => setActive(true);
@@ -417,6 +430,7 @@ function FocusableFavoriteCard({ item, catId, onPlay, onRemove, onMove }: any) {
             onClick={() => onPlay(item)}
             onFocus={activate}
             onBlur={deactivate}
+            customFocusKey={imgKey}
           />
         </div>
 
@@ -439,15 +453,24 @@ function FocusableFavoriteCard({ item, catId, onPlay, onRemove, onMove }: any) {
 
 // ─── Card image ───────────────────────────────────────────────────────────────
 
-function FocusableCardImage({ id, item, isChannel, onClick, onFocus, onBlur }: any) {
+function FocusableCardImage({ id, item, isChannel, onClick, onFocus, onBlur, customFocusKey }: any) {
   const rating = useRatingStore(state => {
     const profileId = useProfileStore.getState().activeProfile?.id || 'default';
     return state.ratings[profileId]?.[String(item.stream_id || item.series_id || item.id)]?.rating;
   });
 
   const { ref, focusKey } = useFocusable({
-    focusKey: `IMG_${id}`,
+    focusKey: customFocusKey || `IMG_${id}`,
     onEnterPress: onClick,
+    onArrowPress: (direction) => {
+      if (direction === 'left') {
+        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
+          setFocus('NAV_FAVORITES');
+          return false;
+        }
+      }
+      return true;
+    },
     // Only setState — never call setFocus here to avoid loops
     onFocus: () => {
       onFocus();

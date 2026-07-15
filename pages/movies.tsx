@@ -21,7 +21,9 @@ export default function Movies() {
   const [errorInfo, setErrorInfo] = useState<string>('');
 
   const { ref, focusKey } = useFocusable({
-    focusKey: 'MOVIES'
+    focusKey: 'MAIN_CONTENT',
+    saveLastFocusedChild: true,
+    trackChildren: true
   });
   const [playbackHistory, setPlaybackHistory] = useState<any>({});
   const [resumeModal, setResumeModal] = useState<{ isOpen: boolean, item: any, time: number }>({
@@ -198,9 +200,9 @@ export default function Movies() {
 
   return (
     <div className="flex-1 flex bg-[#050505] min-h-screen text-white font-['Inter'] selection:bg-[#b5924d]/30">
+      <Sidebar />
       <FocusContext.Provider value={focusKey}>
-        <Sidebar />
-        <main ref={ref} className="ml-20 lg:ml-72 flex-1 relative overflow-hidden">
+        <main ref={ref} className="ml-20 lg:ml-72 flex-1 relative overflow-y-auto no-scrollbar">
 
           {/* Notification Overlay */}
           {launchingVideo && (
@@ -298,7 +300,14 @@ function FocusableInput({ value, onChange, placeholder, containerRef }: any) {
     onEnterPress: () => {
       ref.current.querySelector('input').focus();
     },
-    onArrowPress: (direction) => direction !== 'up',
+    onArrowPress: (direction) => {
+      if (direction === 'up') return false;
+      if (direction === 'left') {
+        setFocus('NAV_MOVIES');
+        return false;
+      }
+      return true;
+    },
     onFocus: () => {
       if (!(window as any).isMouseFocus) {
         setTimeout(() => {
@@ -358,6 +367,15 @@ function FocusableMovie({ vid, idx, onClick, onLongPress }: any) {
 
   const { ref, focused, focusKey } = useFocusable({
     focusKey: `MOVIE_${vid.stream_id}`,
+    onArrowPress: (direction) => {
+      if (direction === 'left') {
+        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
+          setFocus('NAV_MOVIES');
+          return false;
+        }
+      }
+      return true;
+    },
     onFocus: () => {
       if (!(window as any).isMouseFocus) {
         ref.current?.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });

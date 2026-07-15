@@ -19,6 +19,8 @@ export function Sidebar() {
 
   const { ref, focusKey } = useFocusable({
     focusKey: 'SIDEBAR',
+    trackChildren: true,
+    saveLastFocusedChild: true,
   });
 
   return (
@@ -36,12 +38,12 @@ export function Sidebar() {
         </div>
         
         <nav className="flex-1 mt-12 space-y-2 px-4">
-          <NavButton icon="🏠" label="Index" active={router.pathname === '/'} onClick={() => router.push('/')} isFirst={true} />
-          <NavButton icon="🎬" label="Cinéma" active={router.pathname.includes('/movies')} onClick={() => router.push('/movies')} />
-          <NavButton icon="📺" label="Canaux" active={router.pathname.includes('/channels')} onClick={() => router.push('/channels')} />
-          <NavButton icon="🍿" label="Séries" active={router.pathname.includes('/series')} onClick={() => router.push('/series')} />
-          <NavButton icon="✨" label="Favoris" active={router.pathname.includes('/favorites')} onClick={() => router.push('/favorites')} />
-          <NavButton icon="📱" label="Remote" active={router.pathname.includes('/remote')} onClick={() => router.push('/remote')} />
+          <NavButton customFocusKey="NAV_INDEX" icon="🏠" label="Index" active={router.pathname === '/'} onClick={() => router.push('/')} isFirst={true} />
+          <NavButton customFocusKey="NAV_MOVIES" icon="🎬" label="Cinéma" active={router.pathname.includes('/movies')} onClick={() => router.push('/movies')} />
+          <NavButton customFocusKey="NAV_CHANNELS" icon="📺" label="Canaux" active={router.pathname.includes('/channels')} onClick={() => router.push('/channels')} />
+          <NavButton customFocusKey="NAV_SERIES" icon="🍿" label="Séries" active={router.pathname.includes('/series')} onClick={() => router.push('/series')} />
+          <NavButton customFocusKey="NAV_FAVORITES" icon="✨" label="Favoris" active={router.pathname.includes('/favorites')} onClick={() => router.push('/favorites')} />
+          <NavButton customFocusKey="NAV_REMOTE" icon="📱" label="Remote" active={router.pathname.includes('/remote')} onClick={() => router.push('/remote')} />
           {!isTV && <NavButton icon="🏗️" label="Studio" active={router.pathname.includes('/studio')} onClick={() => router.push('/studio')} />}
           <NavButton 
             icon="🔄" 
@@ -80,11 +82,16 @@ export function Sidebar() {
   );
 }
 
-function NavButton({ icon, label, active = false, onClick, isFirst, isLast }: { icon: React.ReactNode, label: string, active?: boolean, onClick: () => void, isFirst?: boolean, isLast?: boolean}) {
+function NavButton({ icon, label, active = false, onClick, isFirst, isLast, customFocusKey }: { icon: React.ReactNode, label: string, active?: boolean, onClick: () => void, isFirst?: boolean, isLast?: boolean, customFocusKey?: string}) {
   const { ref, focused, focusKey } = useFocusable({
+    focusKey: customFocusKey,
     onEnterPress: onClick,
     onArrowPress: (direction) => {
       if (direction === 'left') return false;
+      if (direction === 'right') {
+        setFocus('MAIN_CONTENT');
+        return false;
+      }
       if (direction === 'up' && isFirst) return false;
       if (direction === 'down' && isLast) return false;
       return true;
