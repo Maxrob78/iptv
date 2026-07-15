@@ -14,6 +14,8 @@ export default function Channels() {
   const [launchingVideo, setLaunchingVideo] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [renderLimit, setRenderLimit] = useState(20);
+  const [debugInfo, setDebugInfo] = useState<string>('');
   const [favModalItem, setFavModalItem] = useState<any>(null);
 
   const { ref, focusKey } = useFocusable({
@@ -26,6 +28,10 @@ export default function Channels() {
       setSearch(router.query.q as string);
       setDebouncedSearch(router.query.q as string);
     }
+    const timer = setTimeout(() => {
+      setRenderLimit(100);
+    }, 150);
+    return () => clearTimeout(timer);
   }, [router.isReady, router.query.q]);
 
   useEffect(() => {
@@ -64,10 +70,10 @@ export default function Channels() {
   }, [channels.length, setChannels, checkAndClearCache]);
 
   const filteredChannels = useMemo(() => {
-    if (!debouncedSearch) return channels.slice(0, 100);
+    if (!debouncedSearch) return channels.slice(0, renderLimit);
     const lowerSearch = debouncedSearch.toLowerCase();
-    return channels.filter(c => c.name.toLowerCase().includes(lowerSearch)).slice(0, 100);
-  }, [channels, debouncedSearch]);
+    return channels.filter(c => c.name.toLowerCase().includes(lowerSearch)).slice(0, renderLimit);
+  }, [channels, debouncedSearch, renderLimit]);
 
 
   const handlePlayChannel = (ch: LiveStream) => {

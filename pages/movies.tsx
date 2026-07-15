@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { xtreamApi } from '../utils/xtream';
 import { useDataStore } from '../store/useDataStore';
@@ -12,12 +12,13 @@ import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spat
 
 export default function Movies() {
   const router = useRouter();
-  const { movies, setMovies, checkAndClearCache } = useDataStore();
+  const { movies, setMovies, checkAndClearCache, hydrateHeavyData } = useDataStore();
   const [loading, setLoading] = useState(movies.length === 0);
   const [launchingVideo, setLaunchingVideo] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [debugInfo, setDebugInfo] = useState<string>('');
+  const [renderLimit, setRenderLimit] = useState(20);
+  const [errorInfo, setErrorInfo] = useState<string>('');
 
   const { ref, focusKey } = useFocusable({
     focusKey: 'MOVIES'
@@ -60,6 +61,10 @@ export default function Movies() {
       setSearch(router.query.q as string);
       setDebouncedSearch(router.query.q as string);
     }
+    const timer = setTimeout(() => {
+      setRenderLimit(100);
+    }, 150);
+    return () => clearTimeout(timer);
   }, [router.isReady, router.query.q]);
 
   useEffect(() => {
@@ -80,32 +85,47 @@ export default function Movies() {
     setTimeout(() => {
       setFocus('MOVIE_SEARCH');
     }, 200);
+
     const fetchData = async () => {
-      if (movies.length > 0) return;
+      // 1. On tente d'abord de recharger depuis le cache disque (IndexedDB),
+      //    ce qui est quasi instantané comparé à re-fetch l'API.
+      await hydrateHeavyData();
+      if (useDataStore.getState().movies.length > 0) {
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
-        setDebugInfo('');
+        setErrorInfo('');
         const vods = await xtreamApi.getVodStreams();
-        setDebugInfo(JSON.stringify(vods).substring(0, 500));
-        setMovies(vods);
+        // Pré-calcul du nom en minuscule une seule fois ici, plutôt qu'à
+        // chaque frappe dans la recherche (évite 100k+ toLowerCase() répétés).
+        const vodsWithSearchKey = vods.map((v: any) => ({
+          ...v,
+          _nameLower: (v.name || '').toLowerCase(),
+        }));
+        setMovies(vodsWithSearchKey);
       } catch (err: any) {
-        setDebugInfo(err.message || String(err));
+        setErrorInfo(err.message || String(err));
         console.error("Erreur de récupération VOD", err);
       } finally {
         setLoading(false);
       }
     };
     fetchData();
-  }, [movies.length, setMovies, checkAndClearCache]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filteredMovies = useMemo(() => {
-    if (!debouncedSearch) return movies.slice(0, 100);
+    if (!debouncedSearch) return movies.slice(0, renderLimit);
     const lowerSearch = debouncedSearch.toLowerCase();
-    return movies.filter(m => m.name.toLowerCase().includes(lowerSearch)).slice(0, 100);
-  }, [movies, debouncedSearch]);
+    return movies
+      .filter(m => (m._nameLower || m.name.toLowerCase()).includes(lowerSearch))
+      .slice(0, renderLimit);
+  }, [movies, debouncedSearch, renderLimit]);
 
-
-  const handlePlayMovie = (vid: any, forcedStartTime?: number) => {
+  const handlePlayMovie = useCallback((vid: any, forcedStartTime?: number) => {
     if (launchingVideo) return; // Anti-double clic
     const streamUrl = xtreamApi.getStreamUrl(vid.stream_id, 'movie', vid.container_extension || 'mkv');
 
@@ -159,9 +179,22 @@ export default function Movies() {
       router.push(`/player/${vid.stream_id}?type=movie&extension=${vid.container_extension}&title=${encodeURIComponent(vid.name)}&cover=${encodeURIComponent(vid.stream_icon || '')}&start=${startTime}`);
     }
     setTimeout(() => setLaunchingVideo(null), 3000);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [launchingVideo, router]);
 
-  console.log("CHARGEMENT PAGE MOVIES");
+  // Hook toujours appelé au même niveau (jamais dans un ternaire) :
+  // corrige la violation des Rules of Hooks de la version précédente.
+  const movieCards = useMemo(() => (
+    filteredMovies.map((vid, idx) => (
+      <FocusableMovie
+        key={vid.stream_id}
+        vid={vid}
+        idx={idx}
+        onClick={handlePlayMovie}
+        onLongPress={(item: any) => setFavModalItem(item)}
+      />
+    ))
+  ), [filteredMovies, handlePlayMovie]);
 
   return (
     <div className="flex-1 flex bg-[#050505] min-h-screen text-white font-['Inter'] selection:bg-[#b5924d]/30">
@@ -211,22 +244,16 @@ export default function Movies() {
               </div>
             ) : filteredMovies.length > 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-12 pt-32">
-                {filteredMovies.map((vid, idx) => (
-                  <FocusableMovie
-                    key={vid.stream_id}
-                    vid={vid}
-                    idx={idx}
-                    onClick={handlePlayMovie}
-                    onLongPress={(item: any) => setFavModalItem(item)}
-                  />
-                ))}
+                {movieCards}
               </div>
             ) : (
               <div className="py-24">
                 <p className="text-gray-700 text-[10px] font-medium uppercase tracking-[0.6em]">Aucune œuvre ne correspond à ce critère.</p>
-                <div className="mt-8 p-4 bg-white/5 border border-white/10 rounded">
-                  <p className="text-xs font-mono text-gray-400 break-all">DEBUG: {debugInfo}</p>
-                </div>
+                {errorInfo && (
+                  <div className="mt-8 p-4 bg-white/5 border border-white/10 rounded">
+                    <p className="text-xs font-mono text-gray-400 break-all">Erreur: {errorInfo}</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -314,6 +341,11 @@ function FocusableInput({ value, onChange, placeholder, containerRef }: any) {
   );
 }
 
+// Nombre de cartes qui bénéficient encore d'un délai d'animation en cascade.
+// Au-delà, toutes les cartes apparaissent en même temps : évite d'étaler
+// l'entrée sur 2-3 secondes quand renderLimit atteint 100.
+const MAX_STAGGERED_CARDS = 20;
+
 function FocusableMovie({ vid, idx, onClick, onLongPress }: any) {
   const rating = useRatingStore(state => {
     const profileId = useProfileStore.getState().activeProfile?.id || 'default';
@@ -389,7 +421,7 @@ function FocusableMovie({ vid, idx, onClick, onLongPress }: any) {
           setTimeout(() => { (window as any).isMouseFocus = false; }, 50);
         }
       }}
-      style={{ animationDelay: `${idx * 20}ms` }}
+      style={{ animationDelay: `${Math.min(idx, MAX_STAGGERED_CARDS) * 20}ms` }}
       className={`group relative animate-in zoom-in-95 duration-700 ring-1 transition-all duration-300 outline-none
                    ${focused ? 'ring-[#b5924d] ring-4 scale-105 shadow-[0_40px_80px_rgba(181,146,77,0.4)] z-50' : 'ring-white/5 opacity-100'}`}
     >

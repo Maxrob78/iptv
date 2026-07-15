@@ -43,6 +43,12 @@ interface DataState {
   refreshData: () => void;
   startRefresh: () => void;
 
+  // NOUVEAU : recharge movies/channels/series depuis le cache disque (IndexedDB)
+  // sans passer par le middleware persist (qui stringifierait tout le state
+  // à chaque set()). A appeler une fois au montage avant de décider s'il
+  // faut re-fetch l'API.
+  hydrateHeavyData: () => Promise<void>;
+
   // Helpers pour récupérer les données du profil actif
   getProfileData: () => ProfileSpecificData;
 
@@ -77,6 +83,24 @@ const dataStorage = localforage.createInstance({
   storeName: 'data'
 });
 
+// Clés dédiées pour les gros volumes, écrites/lues manuellement,
+// en dehors du cycle set()/persist de Zustand.
+const HEAVY_KEYS = {
+  movies: 'cached_movies',
+  channels: 'cached_channels',
+  series: 'cached_series',
+} as const;
+
+// Ecriture asynchrone différée (après le paint) pour ne jamais bloquer
+// le thread principal pendant un rendu.
+function writeHeavyKeyDeferred(key: string, value: any[]) {
+  setTimeout(() => {
+    dataStorage.setItem(key, value).catch((e) => {
+      console.error(`[cache] Echec écriture "${key}":`, e);
+    });
+  }, 0);
+}
+
 const DEFAULT_PROFILE_DATA: ProfileSpecificData = {
   favorites: [],
   favoriteCategories: [
@@ -97,11 +121,45 @@ export const useDataStore = create<DataState>()(
       remoteHubIp: '',
       isRefreshing: false,
 
-      setMovies: (movies) => set({ movies, lastUpdated: Date.now() }),
-      setChannels: (channels) => set({ channels, lastUpdated: Date.now() }),
-      setSeries: (series) => set({ series, lastUpdated: Date.now() }),
+      setMovies: (movies) => {
+        set({ movies, lastUpdated: Date.now() });
+        writeHeavyKeyDeferred(HEAVY_KEYS.movies, movies);
+      },
+      setChannels: (channels) => {
+        set({ channels, lastUpdated: Date.now() });
+        writeHeavyKeyDeferred(HEAVY_KEYS.channels, channels);
+      },
+      setSeries: (series) => {
+        set({ series, lastUpdated: Date.now() });
+        writeHeavyKeyDeferred(HEAVY_KEYS.series, series);
+      },
       setIsRefreshing: (val) => set({ isRefreshing: val }),
       setRemoteHubIp: (remoteHubIp) => set({ remoteHubIp }),
+
+      hydrateHeavyData: async () => {
+        const { lastUpdated, movies, channels, series } = get();
+        // Rien à faire si déjà en mémoire (ex: navigation entre pages)
+        if (movies.length > 0 || channels.length > 0 || series.length > 0) return;
+        // Rien à faire si le cache est expiré ou absent : on laissera
+        // le fetch API normal s'en charger.
+        if (!lastUpdated || Date.now() - lastUpdated > CACHE_EXPIRATION_MS) return;
+
+        try {
+          const [cachedMovies, cachedChannels, cachedSeries] = await Promise.all([
+            dataStorage.getItem<any[]>(HEAVY_KEYS.movies),
+            dataStorage.getItem<any[]>(HEAVY_KEYS.channels),
+            dataStorage.getItem<any[]>(HEAVY_KEYS.series),
+          ]);
+
+          set({
+            movies: cachedMovies || [],
+            channels: cachedChannels || [],
+            series: cachedSeries || [],
+          });
+        } catch (e) {
+          console.error('[cache] Echec hydratation movies/channels/series:', e);
+        }
+      },
 
       getProfileData: () => {
         const activeProfileId = useProfileStore.getState().activeProfile?.id;
@@ -380,15 +438,26 @@ export const useDataStore = create<DataState>()(
         const { lastUpdated } = get();
         if (lastUpdated && Date.now() - lastUpdated > CACHE_EXPIRATION_MS) {
           set({ movies: [], channels: [], series: [], lastUpdated: null });
+          // On purge aussi le cache disque dédié pour ne pas laisser
+          // de données périmées traîner dans IndexedDB.
+          dataStorage.removeItem(HEAVY_KEYS.movies).catch(() => { });
+          dataStorage.removeItem(HEAVY_KEYS.channels).catch(() => { });
+          dataStorage.removeItem(HEAVY_KEYS.series).catch(() => { });
         }
       },
 
       refreshData: () => {
         set({ movies: [], channels: [], series: [], lastUpdated: null });
+        dataStorage.removeItem(HEAVY_KEYS.movies).catch(() => { });
+        dataStorage.removeItem(HEAVY_KEYS.channels).catch(() => { });
+        dataStorage.removeItem(HEAVY_KEYS.series).catch(() => { });
       },
 
       startRefresh: () => {
         set({ movies: [], channels: [], series: [], lastUpdated: null, isRefreshing: true });
+        dataStorage.removeItem(HEAVY_KEYS.movies).catch(() => { });
+        dataStorage.removeItem(HEAVY_KEYS.channels).catch(() => { });
+        dataStorage.removeItem(HEAVY_KEYS.series).catch(() => { });
       }
     }),
     {
@@ -399,6 +468,21 @@ export const useDataStore = create<DataState>()(
         removeItem: (name) => dataStorage.removeItem(name),
       })),
       skipHydration: true,
+      // CRITIQUE : movies/channels/series sont volontairement exclus.
+      // Sans ça, le middleware persist ferait un JSON.stringify(state)
+      // synchrone incluant ces tableaux à CHAQUE appel de set(), y compris
+      // pour des actions qui n'ont rien à voir (toggleFavorite, etc).
+      // Avec 100k+ films, ça peut bloquer le thread principal 1 à 3s.
+      // Elles sont sauvegardées séparément via writeHeavyKeyDeferred().
+      partialize: (state) => ({
+        profilesData: state.profilesData,
+        favorites: state.favorites,
+        favoriteCategories: state.favoriteCategories,
+        localLibrary: state.localLibrary,
+        hasMigrated: state.hasMigrated,
+        remoteHubIp: state.remoteHubIp,
+        lastUpdated: state.lastUpdated,
+      }),
     }
   )
 );

@@ -14,6 +14,7 @@ export default function Series() {
   const [loading, setLoading] = useState(series.length === 0);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [renderLimit, setRenderLimit] = useState(20);
   const [debugInfo, setDebugInfo] = useState<string>('');
   const [favModalItem, setFavModalItem] = useState<any>(null);
 
@@ -27,6 +28,10 @@ export default function Series() {
       setSearch(router.query.q as string);
       setDebouncedSearch(router.query.q as string);
     }
+    const timer = setTimeout(() => {
+      setRenderLimit(100);
+    }, 150);
+    return () => clearTimeout(timer);
   }, [router.isReady, router.query.q]);
 
   useEffect(() => {
@@ -86,10 +91,10 @@ export default function Series() {
   }, [series.length, setSeries, checkAndClearCache]);
 
   const filteredSeries = useMemo(() => {
-    if (!debouncedSearch) return series.slice(0, 100);
+    if (!debouncedSearch) return series.slice(0, renderLimit);
     const lowerSearch = debouncedSearch.toLowerCase();
-    return series.filter(s => s.name.toLowerCase().includes(lowerSearch)).slice(0, 100);
-  }, [series, debouncedSearch]);
+    return series.filter(s => s.name.toLowerCase().includes(lowerSearch)).slice(0, renderLimit);
+  }, [series, debouncedSearch, renderLimit]);
 
   return (
     <div className="flex-1 flex bg-[#050505] min-h-screen text-white font-['Inter'] selection:bg-[#b5924d]/30">
