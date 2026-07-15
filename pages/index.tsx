@@ -77,7 +77,7 @@ export default function Home() {
     const activeProfileId = useProfileStore.getState().activeProfile?.id;
     const historyKey = activeProfileId ? `iptv_playback_history_${activeProfileId}` : 'iptv_playback_history';
     const history = JSON.parse(localStorage.getItem(historyKey) || '{}');
-    
+
     setPlaybackHistory(getGroupedHistory(history));
 
     // Écouteur global pour la progression MPV (Dashboard)
@@ -155,7 +155,7 @@ export default function Home() {
     const activeProfileId = useProfileStore.getState().activeProfile?.id;
     const historyKey = activeProfileId ? `iptv_playback_history_${activeProfileId}` : 'iptv_playback_history';
     const history = JSON.parse(localStorage.getItem(historyKey) || '{}');
-    
+
     let deleted = false;
     Object.keys(history).forEach(key => {
       if (key === id || history[key].seriesId === id || history[key].id === id) {
@@ -166,7 +166,7 @@ export default function Home() {
 
     if (deleted) {
       localStorage.setItem(historyKey, JSON.stringify(history));
-      
+
       setPlaybackHistory(prev => {
         const updated = prev.filter(item => item.id !== id);
 
@@ -332,7 +332,7 @@ export default function Home() {
                 <div className="absolute inset-0 bg-gradient-to-t from-[#030303] via-[#030303]/50 to-transparent z-10" />
                 <img
                   src={playbackHistory[0].cover}
-                  className="w-full h-full object-cover object-top opacity-30 scale-105"
+                  className="w-full h-full object-cover object-top opacity-90 scale-105"
                   alt=""
                 />
               </div>
@@ -342,7 +342,7 @@ export default function Home() {
                 <div className="absolute inset-0 bg-gradient-to-t from-[#030303] via-[#030303]/50 to-transparent z-10" />
                 <img
                   src={movies[Math.floor(Math.random() * 10)]?.stream_icon}
-                  className="w-full h-full object-cover object-center opacity-20 blur-sm"
+                  className="w-full h-full object-cover object-center opacity-50 blur-sm"
                   alt=""
                 />
               </div>
@@ -631,7 +631,7 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFo
     if ((window as any).electronAPI && (window as any).electronAPI.send) {
       const isVisible = focused && isHistory && !!onRemove;
       (window as any).electronAPI.send('remote-visibility', { isHistoryFocus: isVisible });
-      
+
       return () => {
         if (isVisible) {
           (window as any).electronAPI.send('remote-visibility', { isHistoryFocus: false });
@@ -668,7 +668,7 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFo
         }
       }}
       className={`flex-shrink-0 cursor-pointer group relative transition-all duration-500 glass-reflection isolate
-                 ${focused ? 'ring-[#b5924d] ring-4 scale-105 shadow-[0_40px_80px_rgba(181,146,77,0.3)] z-40 transform-gpu' : 'ring-white/5 ring-1 opacity-70 z-10'}
+                 ${focused ? 'ring-[#b5924d] ring-4 scale-105 shadow-[0_40px_80px_rgba(181,146,77,0.3)] z-40 transform-gpu' : 'ring-white/5 ring-1 opacity-100 z-10'}
                  ${isChannel ? 'w-48 h-48 rounded-2xl' : 'w-56 aspect-[3/4.5] rounded-xl'}`}
     >
       {isHistory && onRemove && (
@@ -688,7 +688,7 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFo
             if (e.currentTarget.src !== fallback) { e.currentTarget.src = fallback; }
           }}
           alt=""
-          className={`w-full h-full transition-all duration-1000 ${focused ? 'scale-110 opacity-100' : 'opacity-80'} ${isChannel ? 'object-contain mb-4 filter drop-shadow-2xl' : 'object-cover'}`}
+          className={`w-full h-full transition-all duration-1000 ${focused ? 'scale-110 opacity-100' : 'opacity-90'} ${isChannel ? 'object-contain mb-4 filter drop-shadow-2xl' : 'object-cover'}`}
         />
 
 

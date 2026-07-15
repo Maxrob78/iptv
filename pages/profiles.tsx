@@ -222,6 +222,14 @@ export default function ProfilesPage() {
                       value={newName}
                       onChange={setNewName}
                       placeholder="Ex: Maxence"
+                      onArrowPress={(direction: string) => {
+                        if (direction === 'right') {
+                          const target = (window as any).lastAvatarFocusKey || 'AVATAR_OPT_0_0';
+                          setFocus(target);
+                          return false; // prevent default spatial navigation
+                        }
+                        return true;
+                      }}
                     />
                   </div>
                 </div>
@@ -386,6 +394,7 @@ function FocusableAvatarOption({ url, catIdx, imgIdx, isActive, onSelect, onArro
     onEnterPress: onSelect,
     onArrowPress,
     onFocus: () => {
+      (window as any).lastAvatarFocusKey = `AVATAR_OPT_${catIdx}_${imgIdx}`;
       if (ref.current && !isMouseActive) {
         ref.current.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
       }
@@ -404,8 +413,9 @@ function FocusableAvatarOption({ url, catIdx, imgIdx, isActive, onSelect, onArro
         }
       }}
       className={`w-28 h-28 rounded-full overflow-hidden cursor-pointer transition-all border-4 
-                 ${isActive ? 'border-[#b5924d] scale-110 shadow-[0_0_30px_rgba(181,146,77,0.3)]' : 'border-transparent'}
-                 ${focused ? 'ring-4 ring-white scale-110 z-10 shadow-2xl' : 'opacity-40 hover:opacity-100'}`}
+                 ${isActive ? 'border-[#b5924d] shadow-[0_0_30px_rgba(181,146,77,0.3)]' : 'border-transparent'}
+                 ${focused ? 'ring-4 ring-white z-10 shadow-2xl' : ''}
+                 ${(isActive || focused) ? 'opacity-100 scale-110' : 'opacity-80 hover:opacity-100 scale-100'}`}
     >
       <img src={url} loading="lazy" decoding="async" className="w-full h-full object-cover" alt="" />
     </div>
@@ -442,10 +452,11 @@ function FocusableButton({ label, primary, danger, onClick, onArrowPress, focusK
   );
 }
 
-function FocusableInput({ value, onChange, placeholder, focusKey: customFocusKey }: any) {
+function FocusableInput({ value, onChange, placeholder, focusKey: customFocusKey, onArrowPress }: any) {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const { ref, focused, focusKey } = useFocusable({
     focusKey: customFocusKey,
+    onArrowPress,
     onFocus: () => {
       if (!isMouseActive) {
         window.scrollTo({ top: 0, behavior: 'auto' });
