@@ -391,7 +391,7 @@ function FocusableMovie({ vid, idx, onClick, onLongPress }: any) {
       }}
       style={{ animationDelay: `${idx * 20}ms` }}
       className={`group relative animate-in zoom-in-95 duration-700 ring-1 transition-all duration-300 outline-none
-                   ${focused ? 'ring-[#b5924d] ring-4 scale-105 shadow-[0_40px_80px_rgba(181,146,77,0.4)] z-50' : 'ring-white/5 opacity-80'}`}
+                   ${focused ? 'ring-[#b5924d] ring-4 scale-105 shadow-[0_40px_80px_rgba(181,146,77,0.4)] z-50' : 'ring-white/5 opacity-100'}`}
     >
       <div
         onClick={(e) => {
@@ -407,7 +407,7 @@ function FocusableMovie({ vid, idx, onClick, onLongPress }: any) {
             if (e.currentTarget.src !== fallback) { e.currentTarget.src = fallback; }
           }}
           alt=""
-          className={`w-full h-full object-cover transition-all duration-1000 ${focused ? 'scale-110 opacity-100' : 'opacity-80'}`} />
+          className={`w-full h-full object-cover transition-all duration-1000 ${focused ? 'scale-110 opacity-100' : 'opacity-90'}`} />
 
         <div className={`absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-transparent transition-all duration-500 flex flex-col justify-end p-8 ${focused ? 'opacity-100' : 'opacity-0'}`}>
           <span className="text-[8px] font-bold uppercase tracking-[0.3em] text-[#b5924d] mb-2">{vid.quality || 'MASTER'}</span>

@@ -296,7 +296,7 @@ function FocusableChannel({ ch, idx, onClick, onLongPress }: any) {
       }}
       style={{ animationDelay: `${idx * 15}ms` }}
       className={`group relative animate-in zoom-in-95 duration-700 aspect-square ring-1 transition-all duration-300 outline-none
-                   ${focused ? 'ring-[#b5924d] ring-4 scale-105 shadow-[0_40px_80px_rgba(181,146,77,0.4)] z-50' : 'ring-white/5 opacity-80'}`}
+                   ${focused ? 'ring-[#b5924d] ring-4 scale-105 shadow-[0_40px_80px_rgba(181,146,77,0.4)] z-50' : 'ring-white/5 opacity-100'}`}
     >
       <div
         onClick={(e) => {
