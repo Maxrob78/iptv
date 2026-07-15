@@ -132,6 +132,17 @@ export default function ProfilesPage() {
       removeProfile(deleteConfirm);
       removeProfileData(deleteConfirm);
       setDeleteConfirm(null);
+      setIsAdding(false);
+      
+      // Wait for profiles to update
+      setTimeout(() => {
+        const remainingProfiles = useProfileStore.getState().profiles;
+        if (remainingProfiles.length > 0) {
+          setFocus(`PROFILE_CARD_${remainingProfiles[0].id}`);
+        } else {
+          setFocus('PROFILE_ADD_BUTTON');
+        }
+      }, 150);
     }
   };
 
@@ -182,31 +193,6 @@ export default function ProfilesPage() {
                 />
               </div>
 
-              {/* Modale de Confirmation de suppression */}
-              {deleteConfirm && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in duration-300">
-                    <div className="bg-[#111] border border-white/10 p-12 rounded-sm max-w-lg w-full space-y-10 shadow-2xl animate-in zoom-in-95 duration-300">
-                        <div className="text-center space-y-4">
-                            <h2 className="text-3xl font-light">Supprimer le profil ?</h2>
-                            <p className="text-gray-500 font-light leading-relaxed">
-                                Toutes les données (favoris, historique) de ce profil seront définitivement effacées.
-                            </p>
-                        </div>
-                        
-                        <div className="flex space-x-4">
-                            <FocusableButton 
-                                label="Supprimer" 
-                                primary 
-                                onClick={confirmDelete} 
-                            />
-                            <FocusableButton 
-                                label="Annuler" 
-                                onClick={() => setDeleteConfirm(null)} 
-                            />
-                        </div>
-                    </div>
-                </div>
-              )}
             </div>
           ) : (
             <div className="animate-in slide-in-from-bottom-10 duration-300 max-w-5xl mx-auto w-full">
@@ -276,6 +262,32 @@ export default function ProfilesPage() {
               </div>
             </div>
           )}
+
+          {/* Modale de Confirmation de suppression */}
+          {deleteConfirm && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in duration-300">
+                <div className="bg-[#111] border border-white/10 p-12 rounded-sm max-w-lg w-full space-y-10 shadow-2xl animate-in zoom-in-95 duration-300">
+                    <div className="text-center space-y-4">
+                        <h2 className="text-3xl font-light">Supprimer le profil ?</h2>
+                        <p className="text-gray-500 font-light leading-relaxed">
+                            Toutes les données (favoris, historique) de ce profil seront définitivement effacées.
+                        </p>
+                    </div>
+                    
+                    <div className="flex space-x-4">
+                        <FocusableButton 
+                            label="Supprimer" 
+                            primary 
+                            onClick={confirmDelete} 
+                        />
+                        <FocusableButton 
+                            label="Annuler" 
+                            onClick={() => setDeleteConfirm(null)} 
+                        />
+                    </div>
+                </div>
+            </div>
+          )}
         </main>
       </FocusContext.Provider>
     </div>
@@ -343,24 +355,20 @@ function FocusableAddButton({ onClick }: any) {
 }
 
 function FocusableAvatarList({ categories, selectedAvatar, setSelectedAvatar, onUpReached }: any) {
-  const { ref, focusKey } = useFocusable({
-    focusKey: 'AVATAR_LIST_GROUP',
-  });
-
   return (
-    <FocusContext.Provider value={focusKey}>
-      <div 
-        ref={ref}
-        className="space-y-12 max-h-[50vh] overflow-y-auto no-scrollbar px-2 py-4"
-      >
+    <div 
+      className="space-y-12 max-h-[50vh] overflow-y-auto no-scrollbar px-2 py-4"
+    >
         {categories.map((cat: any, catIdx: number) => (
           <div key={cat.name} className="space-y-4">
             <label className="text-[9px] uppercase tracking-[0.3em] text-[#b5924d] opacity-60">{cat.name}</label>
             <div className="flex flex-wrap gap-4">
               {cat.images.map((url: string, imgIdx: number) => (
                 <FocusableAvatarOption
-                  key={url}
+                  key={`${catIdx}-${imgIdx}`}
                   url={url}
+                  catIdx={catIdx}
+                  imgIdx={imgIdx}
                   isActive={selectedAvatar === url}
                   onSelect={() => setSelectedAvatar(url)}
                 />
@@ -369,13 +377,12 @@ function FocusableAvatarList({ categories, selectedAvatar, setSelectedAvatar, on
           </div>
         ))}
       </div>
-    </FocusContext.Provider>
   );
 }
 
-function FocusableAvatarOption({ url, isActive, onSelect, onArrowPress }: any) {
+function FocusableAvatarOption({ url, catIdx, imgIdx, isActive, onSelect, onArrowPress }: any) {
   const { ref, focused, focusKey } = useFocusable({
-    focusKey: `AVATAR_${url.replace(/[^a-zA-Z0-9]/g, '_')}`,
+    focusKey: `AVATAR_OPT_${catIdx}_${imgIdx}`,
     onEnterPress: onSelect,
     onArrowPress,
     onFocus: () => {
