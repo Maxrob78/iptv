@@ -73,6 +73,11 @@ interface DataState {
   remoteHubIp: string;
   setRemoteHubIp: (ip: string) => void;
 
+  // Sous-titres
+  osEnabled: boolean;
+  osApiKey: string;
+  setOsSettings: (enabled: boolean, apiKey: string) => void;
+
   // Migration
   migrateToProfile: (profileId: string) => void;
   removeProfileData: (profileId: string) => void;
@@ -119,6 +124,8 @@ export const useDataStore = create<DataState>()(
       lastUpdated: null,
       hasMigrated: false,
       remoteHubIp: '',
+      osEnabled: false,
+      osApiKey: '',
       isRefreshing: false,
 
       setMovies: (movies) => {
@@ -135,6 +142,7 @@ export const useDataStore = create<DataState>()(
       },
       setIsRefreshing: (val) => set({ isRefreshing: val }),
       setRemoteHubIp: (remoteHubIp) => set({ remoteHubIp }),
+      setOsSettings: (enabled, apiKey) => set({ osEnabled: enabled, osApiKey: apiKey }),
 
       hydrateHeavyData: async () => {
         const { lastUpdated, movies, channels, series } = get();

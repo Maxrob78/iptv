@@ -5,8 +5,10 @@ import { useDataStore } from '../store/useDataStore';
 
 export default function Settings() {
   const { proxy, setProxy } = useAuthStore();
-  const { remoteHubIp, setRemoteHubIp } = useDataStore();
+  const { remoteHubIp, setRemoteHubIp, osEnabled, osApiKey, setOsSettings } = useDataStore();
   const [hubIp, setHubIp] = useState('');
+  const [localOsEnabled, setLocalOsEnabled] = useState(false);
+  const [localOsApiKey, setLocalOsApiKey] = useState('');
   const [localProxy, setLocalProxy] = useState<ProxySettings>({
     enabled: false,
     host: '',
@@ -20,7 +22,9 @@ export default function Settings() {
       setLocalProxy(proxy);
     }
     setHubIp(remoteHubIp || '');
-  }, [proxy, remoteHubIp]);
+    setLocalOsEnabled(osEnabled || false);
+    setLocalOsApiKey(osApiKey || '');
+  }, [proxy, remoteHubIp, osEnabled, osApiKey]);
 
   const [savedMessage, setSavedMessage] = useState('');
 
@@ -35,6 +39,15 @@ export default function Settings() {
   const handleSaveHub = () => {
     setRemoteHubIp(hubIp);
     setSavedMessage('Hub configuré ! Reconnexion en cours...');
+    setTimeout(() => setSavedMessage(''), 3000);
+  };
+
+  const handleSaveOs = () => {
+    setOsSettings(localOsEnabled, localOsApiKey);
+    if ((window as any).electronAPI && (window as any).electronAPI.setOsSettings) {
+      (window as any).electronAPI.setOsSettings({ enabled: localOsEnabled, apiKey: localOsApiKey });
+    }
+    setSavedMessage('Configuration sous-titres enregistrée !');
     setTimeout(() => setSavedMessage(''), 3000);
   };
 
@@ -160,6 +173,56 @@ export default function Settings() {
               className="w-full bg-blue-600 text-white font-black py-5 rounded-2xl hover:bg-blue-500 transition-all active:scale-95 shadow-2xl shadow-blue-900/20 text-lg"
             >
               Lier au Hub
+            </button>
+          </div>
+        </section>
+
+        {/* OPENSUBTITLES CONFIG */}
+        <header className="mt-20 mb-12">
+          <div className="flex items-center space-x-3 mb-2">
+            <span className="w-1.5 h-8 bg-yellow-500 rounded-full" />
+            <span className="text-xs font-black uppercase tracking-[0.3em] text-white/40">Sous-titres Automatiques</span>
+          </div>
+          <h1 className="text-5xl font-black mb-4 tracking-tighter">OpenSubtitles</h1>
+          <p className="text-gray-400 text-lg font-medium max-w-xl leading-relaxed">
+            Téléchargez automatiquement les sous-titres français lors de la lecture d'un film ou d'une série. Nécessite une clé API gratuite de opensubtitles.com.
+          </p>
+        </header>
+
+        <section className="max-w-3xl bg-white/[0.03] border border-white/10 rounded-3xl p-10 backdrop-blur-3xl shadow-2xl relative overflow-hidden group">
+          <div className="flex items-center justify-between mb-10 pb-8 border-b border-white/5 relative z-10">
+            <div>
+              <h2 className="text-2xl font-black tracking-tight mb-1">Activer la recherche</h2>
+              <p className="text-base text-gray-500 font-medium">Recherche automatique des sous-titres FR via l'API REST.</p>
+            </div>
+            <button 
+              onClick={() => setLocalOsEnabled(!localOsEnabled)}
+              className={`w-16 h-9 rounded-full transition-all relative outline-none ring-0 ${localOsEnabled ? 'bg-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.4)]' : 'bg-gray-800'}`}
+            >
+              <div className={`absolute top-1 left-1 w-7 h-7 bg-white rounded-full transition-transform duration-300 ${localOsEnabled ? 'translate-x-7' : 'translate-x-0'}`} />
+            </button>
+          </div>
+
+          <div className={`space-y-8 transition-all duration-500 relative z-10 ${localOsEnabled ? 'opacity-100 scale-100' : 'opacity-30 blur-[2px] pointer-events-none scale-[0.98]'}`}>
+            <div className="space-y-3">
+              <label className="text-[10px] uppercase font-black text-gray-500 tracking-[0.2em] pl-1">Clé API (REST API Key)</label>
+              <input 
+                type="text" 
+                value={localOsApiKey}
+                onChange={(e) => setLocalOsApiKey(e.target.value)}
+                placeholder="ex: a1b2c3d4e5f6g7h8..."
+                className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-yellow-500 transition-all font-medium"
+              />
+              <p className="text-xs text-gray-500 pl-1">
+                Obtenez votre clé sur <a href="https://www.opensubtitles.com/" target="_blank" className="text-yellow-500 hover:underline">opensubtitles.com</a> (Consumer).
+              </p>
+            </div>
+            
+            <button 
+              onClick={handleSaveOs}
+              className="w-full bg-yellow-500 text-black font-black py-5 rounded-2xl hover:bg-yellow-400 transition-all active:scale-95 shadow-2xl shadow-yellow-500/20 text-lg"
+            >
+              Enregistrer
             </button>
           </div>
         </section>

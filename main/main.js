@@ -4,6 +4,7 @@ const os = require('os');
 const http = require('http');
 const WebSocket = require('ws');
 const fs = require('fs');
+const { fetchSubtitle, cleanupCache } = require('./subtitleFetcher');
 
 // OPTIMISATIONS LECTEUR IPTV - DÉCODAGE MATÉRIEL & CODECS
 app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoding,HardwareAcceleratedVideoDecode,CanvasOopRasterization');
@@ -246,6 +247,14 @@ function createWindow() {
     }
   });
 
+  // On lira config.json dynamiquement au besoin
+  let currentOsSettings = { enabled: false, apiKey: '' };
+
+  ipcMain.on('set-os-settings', (event, settings) => {
+    currentOsSettings = settings;
+    console.log('[SUBTITLE] Settings updated:', settings.enabled);
+  });
+
   app.on('login', (event, webContents, request, authInfo, callback) => {
     if (authInfo.isProxy && currentProxy && currentProxy.username) {
       event.preventDefault();
@@ -296,11 +305,43 @@ function createWindow() {
 
     // On s'assure qu'aucun autre MPV ne tourne avant de lancer le nouveau
     // Cela évite d'avoir plusieurs fenêtres si l'utilisateur a cliqué plusieurs fois
-    exec('taskkill /F /IM mpv.exe /T', () => {
-      launchMpv();
+    exec('taskkill /F /IM mpv.exe /T', async () => {
+      const cacheDir = path.join(app.getPath('userData'), 'subtitles_cache');
+      cleanupCache(cacheDir);
+
+      // Recharger config.json pour prendre en compte les modifs en temps réel
+      try {
+        const configPath = path.join(app.getAppPath(), 'config.json');
+        console.log("[SUBTITLE] Lecture config depuis:", configPath);
+        if (fs.existsSync(configPath)) {
+          const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+          console.log("[SUBTITLE] Contenu config.json lu:", config);
+          currentOsSettings.enabled = config.ENABLE_SUBTITLES || false;
+          currentOsSettings.apiKey = config.OPEN_SUBTITLES_API_KEY || '';
+        } else {
+          console.log("[SUBTITLE] Le fichier config.json n'existe pas !");
+        }
+      } catch (e) {
+        console.error("[SUBTITLE] Impossible de lire config.json", e.message);
+      }
+      
+      let subPath = null;
+      console.log(`[SUBTITLE] Evaluation condition: type=${data.type}, enabled=${currentOsSettings.enabled}, apiKey=${currentOsSettings.apiKey ? 'OK' : 'VIDE'}`);
+      // Use currentOsSettings
+      if (data && currentOsSettings.enabled && currentOsSettings.apiKey && (data.type === 'movie' || data.type === 'series' || data.type === 'episode')) {
+        try {
+          subPath = await fetchSubtitle(data, currentOsSettings.apiKey, cacheDir);
+        } catch (e) {
+          console.error("[SUBTITLE] Erreur:", e.message);
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('subtitle-error', e.message);
+          }
+        }
+      }
+      launchMpv(subPath);
     });
 
-    function launchMpv() {
+    function launchMpv(subPath) {
 
     // Normalisation des données (gère l'ancien format string et le nouveau format objet)
     let streamUrl, streamId, title, type;
@@ -342,6 +383,12 @@ function createWindow() {
     if (data.startTime) {
       args.push(`--start=${data.startTime}`);
       console.log(`[LECTURE] Reprise à : ${data.startTime}s`);
+    }
+
+    if (subPath) {
+      args.push(`--sub-file=${subPath}`);
+      args.push('--sid=no');
+      console.log(`[LECTURE] Sous-titre ajouté : ${subPath}`);
     }
 
     // PASSAGE DU PROXY À MPV (Si configuré dans l'app)

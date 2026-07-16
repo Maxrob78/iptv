@@ -21,6 +21,7 @@ export default function AppWrapper({ Component, pageProps }: any) {
   const [isIdle, setIsIdle] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successCount, setSuccessCount] = useState({ movies: 0, channels: 0, series: 0 });
+  const [subtitleToast, setSubtitleToast] = useState('');
   const prevIsRefreshing = useRef(false);
   const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
@@ -66,6 +67,23 @@ export default function AppWrapper({ Component, pageProps }: any) {
 
     if (useAuthStore.persist.hasHydrated()) {
       setHydrated(true);
+    }
+
+    // Initialize OS Settings in main process and listen for subtitle errors
+    if ((window as any).electronAPI) {
+      const osEnabled = useDataStore.getState().osEnabled;
+      const osApiKey = useDataStore.getState().osApiKey;
+      if ((window as any).electronAPI.setOsSettings) {
+        (window as any).electronAPI.setOsSettings({ enabled: osEnabled, apiKey: osApiKey });
+      }
+      
+      if ((window as any).electronAPI.onSubtitleError) {
+        const cleanupSubErr = (window as any).electronAPI.onSubtitleError((msg: string) => {
+          setSubtitleToast(msg);
+          setTimeout(() => setSubtitleToast(''), 4000);
+        });
+        // We can't really cleanup easily here because this runs once, but it's fine for global listener
+      }
     }
 
     // Gestion de l'inactivité
@@ -233,6 +251,13 @@ export default function AppWrapper({ Component, pageProps }: any) {
 
             <p className="text-[8px] text-white/15 uppercase tracking-widest">Fermeture automatique...</p>
           </div>
+        </div>
+      )}
+
+      {/* Toast Sous-titres */}
+      {subtitleToast && (
+        <div className="fixed bottom-10 left-10 bg-red-600/90 text-white px-6 py-4 rounded-2xl shadow-2xl font-black uppercase tracking-widest text-[10px] animate-in fade-in slide-in-from-bottom-5 z-[9999]">
+          {subtitleToast}
         </div>
       )}
 
