@@ -125,7 +125,7 @@ async function fetchSubtitle(data, apiKey, cacheDir) {
   baseTitle = baseTitle.replace(/\s*\(\d{4}\)/g, '').trim();
   
   const cleanTitle = baseTitle.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  let queryParams = `languages=fr&query=${encodeURIComponent(cleanTitle)}`;
+  let queryParams = `languages=fr&query=${encodeURIComponent(cleanTitle)}&order_by=download_count&order_direction=desc`;
   
   // Extraction de la saison/épisode si c'est une série
   if (data.type === 'series') {
@@ -143,7 +143,7 @@ async function fetchSubtitle(data, apiKey, cacheDir) {
       // Nettoyer les tirets ou espaces résiduels à la fin (ex: "Serie Name - " -> "Serie Name")
       titleWithoutEp = titleWithoutEp.replace(/[\s-]+$/, '').trim();
       
-      queryParams = `languages=fr&query=${encodeURIComponent(titleWithoutEp)}&season_number=${parseInt(s)}&episode_number=${parseInt(e)}`;
+      queryParams = `languages=fr&query=${encodeURIComponent(titleWithoutEp)}&season_number=${parseInt(s)}&episode_number=${parseInt(e)}&order_by=download_count&order_direction=desc`;
     }
   }
 
