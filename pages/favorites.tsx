@@ -36,13 +36,13 @@ export default function FavoritesPage() {
     isOpen: false, item: null, time: 0,
   });
 
-  const { ref, focusKey } = useFocusable({ 
-    focusKey: 'MAIN_CONTENT', 
+  const { ref, focusKey } = useFocusable({
+    focusKey: 'MAIN_CONTENT',
     saveLastFocusedChild: true,
     trackChildren: true,
     onArrowPress: (direction) => {
       if (direction === 'left') {
-        setFocus('NAV_FAVORITES');
+        setFocus('SIDEBAR');
         return false;
       }
       return true;
@@ -171,7 +171,7 @@ function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItem
       // YYYY-MM-DD or YYYY.MM.DD
       let match = title.match(/(\d{4})[-\.](\d{2})[-\.](\d{2})/);
       if (match) return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3])).getTime();
-      
+
       // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
       match = title.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})/);
       if (match) return new Date(parseInt(match[3]), parseInt(match[2]) - 1, parseInt(match[1])).getTime();
@@ -316,6 +316,14 @@ function FocusableCategoryTitle({ cat, onRename, blockUp }: any) {
     onEnterPress: handleRenameClick,
     onArrowPress: (direction) => {
       if (blockUp && direction === 'up') return false;
+      // The category title sits at the far-left edge of the row: the spatial
+      // navigation algorithm has nothing to its left inside MAIN_CONTENT, so
+      // returning `true` here (asking the parent to handle it) silently drops
+      // focus instead of bubbling to the sidebar. Handle it explicitly.
+      if (direction === 'left') {
+        setFocus('NAV_FAVORITES');
+        return false;
+      }
       return true;
     }
   });
@@ -434,18 +442,16 @@ function FocusableFavoriteCard({ item, catId, isFirstItem, onPlay, onRemove, onM
           />
         </div>
 
-        {/* Action bar — conditionally rendered so Norigin never sees buttons of inactive cards */}
-        {active && (
-          <div className="flex items-center justify-around p-3
-            bg-black/95 backdrop-blur-xl border-t border-[#b5924d]/30 animate-in fade-in duration-150">
-            <ActionBtn focusKey={`MOVE_L_${id}`} onClick={() => onMove(catId, id, 'left')} onFocus={activate} onBlur={deactivate}
-              icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>} />
-            <ActionBtn focusKey={`DEL_${id}`} danger onClick={() => onRemove(catId, id)} onFocus={activate} onBlur={deactivate}
-              icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>} />
-            <ActionBtn focusKey={`MOVE_R_${id}`} onClick={() => onMove(catId, id, 'right')} onFocus={activate} onBlur={deactivate}
-              icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>} />
-          </div>
-        )}
+        {/* Action bar — always mounted to prevent layout jumps and unmount focus bugs, hidden via opacity */}
+        <div className={`flex items-center justify-around p-3 bg-black/95 backdrop-blur-xl border-t border-[#b5924d]/30 transition-opacity duration-150 ${active ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+          <ActionBtn focusable={active} focusKey={`MOVE_L_${id}`} onClick={() => onMove(catId, id, 'left')} onFocus={activate} onBlur={deactivate}
+            exitLeftToSidebar
+            icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>} />
+          <ActionBtn focusable={active} focusKey={`DEL_${id}`} danger onClick={() => onRemove(catId, id)} onFocus={activate} onBlur={deactivate}
+            icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>} />
+          <ActionBtn focusable={active} focusKey={`MOVE_R_${id}`} onClick={() => onMove(catId, id, 'right')} onFocus={activate} onBlur={deactivate}
+            icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>} />
+        </div>
       </div>
     </FocusContext.Provider>
   );
@@ -465,7 +471,7 @@ function FocusableCardImage({ id, item, isChannel, onClick, onFocus, onBlur, cus
     onArrowPress: (direction) => {
       if (direction === 'left') {
         if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
-          setFocus('NAV_FAVORITES');
+          setFocus('SIDEBAR');
           return false;
         }
       }
@@ -516,10 +522,25 @@ function FocusableCardImage({ id, item, isChannel, onClick, onFocus, onBlur, cus
 
 // ─── Action button ────────────────────────────────────────────────────────────
 
-function ActionBtn({ focusKey: fk, onClick, icon, danger, onFocus, onBlur }: any) {
+function ActionBtn({ focusKey: fk, onClick, icon, danger, onFocus, onBlur, exitLeftToSidebar, focusable = true }: any) {
   const { ref, focused, focusKey } = useFocusable({
+    focusable,
     focusKey: fk,
     onEnterPress: onClick,
+    onArrowPress: (direction) => {
+      // This button sits at the left edge of the action bar (closest to the
+      // sidebar). Just like the category title and the card image, relying on
+      // bubbling through the nested FocusContext.Providers (CARD_ -> section ->
+      // MAIN_CONTENT) drops focus instead of reaching MAIN_CONTENT's handler.
+      // Hand off explicitly instead.
+      if (exitLeftToSidebar && direction === 'left') {
+        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
+          setFocus('SIDEBAR');
+          return false;
+        }
+      }
+      return true;
+    },
     // Only setState — never call setFocus here to avoid loops
     onFocus,
     onBlur,
@@ -569,10 +590,10 @@ function SortDropdown({ catId, currentSort, setSortOrder, blockUp }: any) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-       if (isOpen && e.key === 'Escape') {
-         setIsOpen(false);
-         setFocus(focusKey);
-       }
+      if (isOpen && e.key === 'Escape') {
+        setIsOpen(false);
+        setFocus(focusKey);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -592,25 +613,25 @@ function SortDropdown({ catId, currentSort, setSortOrder, blockUp }: any) {
 
       {isOpen && (
         <div className="absolute top-full right-4 mt-2 bg-black/95 backdrop-blur-xl border border-[#b5924d]/30 rounded-sm shadow-2xl flex flex-col p-2 min-w-[160px] animate-in fade-in zoom-in-95 duration-200">
-           {options.map((opt, index) => (
-             <SortOption 
-               key={opt.value} 
-               opt={opt} 
-               catId={catId}
-               index={index}
-               totalOptions={options.length}
-               currentSort={currentSort} 
-               closeMenu={() => {
-                 setIsOpen(false);
-                 setTimeout(() => setFocus(focusKey), 50);
-               }}
-               onSelect={() => { 
-                 setSortOrder(catId, opt.value); 
-                 setIsOpen(false); 
-                 setTimeout(() => setFocus(focusKey), 50);
-               }} 
-             />
-           ))}
+          {options.map((opt, index) => (
+            <SortOption
+              key={opt.value}
+              opt={opt}
+              catId={catId}
+              index={index}
+              totalOptions={options.length}
+              currentSort={currentSort}
+              closeMenu={() => {
+                setIsOpen(false);
+                setTimeout(() => setFocus(focusKey), 50);
+              }}
+              onSelect={() => {
+                setSortOrder(catId, opt.value);
+                setIsOpen(false);
+                setTimeout(() => setFocus(focusKey), 50);
+              }}
+            />
+          ))}
         </div>
       )}
     </div>
