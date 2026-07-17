@@ -60,6 +60,21 @@ export default function ProfilesPage() {
   });
 
   useEffect(() => {
+    if (isAdding) {
+      (window as any).lastAvatarFocusKey = null;
+    }
+  }, [isAdding]);
+
+  const getAvatarFocusTarget = () => {
+    if ((window as any).lastAvatarFocusKey) return (window as any).lastAvatarFocusKey;
+    for (let c = 0; c < categories.length; c++) {
+      const idx = categories[c].images.indexOf(selectedAvatar);
+      if (idx !== -1) return `AVATAR_OPT_${c}_${idx}`;
+    }
+    return 'AVATAR_OPT_0_0';
+  };
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Si on est en train d'ajouter/modifier un profil et qu'on appuie sur Escape ou Backspace
       if ((e.key === 'Escape' || e.key === 'Backspace') && isAdding) {
@@ -223,9 +238,13 @@ export default function ProfilesPage() {
                       onChange={setNewName}
                       placeholder="Ex: Maxence"
                       onArrowPress={(direction: string) => {
+                        if (direction === 'up') return false;
+                        if (direction === 'down') {
+                          setFocus(editingProfileId ? 'BTN_ENREGISTRER' : 'BTN_CRÉER');
+                          return false;
+                        }
                         if (direction === 'right') {
-                          const target = (window as any).lastAvatarFocusKey || 'AVATAR_OPT_0_0';
-                          setFocus(target);
+                          setFocus(getAvatarFocusTarget());
                           return false; // prevent default spatial navigation
                         }
                         return true;
@@ -242,6 +261,7 @@ export default function ProfilesPage() {
                     categories={categories}
                     selectedAvatar={selectedAvatar}
                     setSelectedAvatar={setSelectedAvatar}
+                    editingProfileId={editingProfileId}
                   />
 
                   <div className="flex space-x-4 pt-10 mt-auto">
@@ -249,6 +269,14 @@ export default function ProfilesPage() {
                       label={editingProfileId ? "Enregistrer" : "Créer"} 
                       primary 
                       onClick={handleSave} 
+                      onArrowPress={(direction: string) => {
+                        if (direction === 'up') {
+                          setFocus(getAvatarFocusTarget());
+                          return false;
+                        }
+                        if (direction === 'down') return false;
+                        return true;
+                      }}
                     />
                     <FocusableButton 
                       label="Annuler" 
@@ -257,12 +285,28 @@ export default function ProfilesPage() {
                           setEditingProfileId(null);
                           setNewName('');
                       }} 
+                      onArrowPress={(direction: string) => {
+                        if (direction === 'up') {
+                          setFocus(getAvatarFocusTarget());
+                          return false;
+                        }
+                        if (direction === 'down') return false;
+                        return true;
+                      }}
                     />
                     {editingProfileId && (
                       <FocusableButton 
                         label="Supprimer" 
                         onClick={() => handleDelete(editingProfileId)} 
                         danger
+                        onArrowPress={(direction: string) => {
+                          if (direction === 'up') {
+                            setFocus(getAvatarFocusTarget());
+                            return false;
+                          }
+                          if (direction === 'down') return false;
+                          return true;
+                        }}
                       />
                     )}
                   </div>
@@ -362,7 +406,15 @@ function FocusableAddButton({ onClick }: any) {
   );
 }
 
-function FocusableAvatarList({ categories, selectedAvatar, setSelectedAvatar, onUpReached }: any) {
+function FocusableDummyBottom({ targetKey }: any) {
+  const { ref } = useFocusable({
+    onFocus: () => setFocus(targetKey),
+    onArrowPress: () => false
+  });
+  return <div ref={ref} className="h-1 w-full" />;
+}
+
+function FocusableAvatarList({ categories, selectedAvatar, setSelectedAvatar, editingProfileId }: any) {
   return (
     <div 
       className="space-y-12 max-h-[50vh] overflow-y-auto no-scrollbar px-2 py-4"
@@ -384,6 +436,7 @@ function FocusableAvatarList({ categories, selectedAvatar, setSelectedAvatar, on
             </div>
           </div>
         ))}
+        <FocusableDummyBottom targetKey={editingProfileId ? 'BTN_ENREGISTRER' : 'BTN_CRÉER'} />
       </div>
   );
 }
@@ -400,6 +453,14 @@ function FocusableAvatarOption({ url, catIdx, imgIdx, isActive, onSelect, onArro
       }
     }
   });
+
+  useEffect(() => {
+    if (isActive && ref.current) {
+      // Met la liste directement sur l'avatar actif à l'ouverture
+      ref.current.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div 

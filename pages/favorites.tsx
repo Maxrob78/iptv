@@ -38,6 +38,7 @@ export default function FavoritesPage() {
 
   const { ref, focusKey } = useFocusable({
     focusKey: 'MAIN_CONTENT',
+    preferredChildFocusKey: favoriteCategories.length > 0 ? `CAT_TITLE_${favoriteCategories[0].id}` : undefined,
     saveLastFocusedChild: true,
     trackChildren: true,
     onArrowPress: (direction) => {
@@ -54,7 +55,11 @@ export default function FavoritesPage() {
   }, []);
 
   useEffect(() => {
-    if (mounted) setTimeout(() => setFocus('FIRST_FAV_ITEM'), 400);
+    if (mounted) {
+      setTimeout(() => {
+        setFocus('FIRST_FAV_TITLE');
+      }, 400);
+    }
   }, [mounted]);
 
   if (!mounted) return null;
@@ -227,6 +232,33 @@ function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItem
     return items;
   }, [cat.items, cat.sortOrder, ratings]);
 
+  const handleRemove = (catId: string, itemId: string) => {
+    const idx = sortedItems.findIndex((i: any) => (i.stream_id || i.series_id || i.id) === itemId);
+    if (idx !== -1) {
+      let nextFocusKey = '';
+      if (sortedItems.length === 1) {
+        nextFocusKey = `CAT_TITLE_${catId}`;
+      } else if (idx < sortedItems.length - 1) {
+        const nextIdx = idx + 1;
+        const rightItem = sortedItems[nextIdx];
+        const rightId = rightItem.stream_id || rightItem.series_id || rightItem.id;
+        const willBeFirst = catIdx === 0 && idx === 0;
+        nextFocusKey = willBeFirst ? 'FIRST_FAV_ITEM' : `IMG_${catId}_${rightId}`;
+      } else {
+        const leftIdx = idx - 1;
+        const leftItem = sortedItems[leftIdx];
+        const leftId = leftItem.stream_id || leftItem.series_id || leftItem.id;
+        const willBeFirst = catIdx === 0 && leftIdx === 0;
+        nextFocusKey = willBeFirst ? 'FIRST_FAV_ITEM' : `IMG_${catId}_${leftId}`;
+      }
+
+      removeItemFromCategory(catId, itemId);
+      setTimeout(() => setFocus(nextFocusKey), 150);
+    } else {
+      removeItemFromCategory(catId, itemId);
+    }
+  };
+
   return (
     <FocusContext.Provider value={focusKey}>
       <section ref={ref}>
@@ -282,7 +314,7 @@ function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItem
               <FocusableFavoriteCard
                 key={item.stream_id || item.series_id || item.id}
                 item={item} catId={cat.id} onPlay={handlePlay}
-                onRemove={removeItemFromCategory} onMove={moveItemInCategory}
+                onRemove={handleRemove} onMove={moveItemInCategory}
                 isFirstItem={catIdx === 0 && idx === 0}
               />
             ))
@@ -313,6 +345,7 @@ function FocusableCategoryTitle({ cat, onRename, blockUp }: any) {
   };
 
   const { ref, focused, focusKey } = useFocusable({
+    focusKey: blockUp ? 'FIRST_FAV_TITLE' : `CAT_TITLE_${cat.id}`,
     onEnterPress: handleRenameClick,
     onArrowPress: (direction) => {
       if (blockUp && direction === 'up') return false;
@@ -325,6 +358,12 @@ function FocusableCategoryTitle({ cat, onRename, blockUp }: any) {
         return false;
       }
       return true;
+    },
+    onFocus: () => {
+      if (blockUp) {
+        // Le titre de la 1ère catégorie est focus : on remonte tout en haut pour voir "MES COLLECTIONS."
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50);
+      }
     }
   });
 
@@ -354,7 +393,7 @@ function FocusableCategoryTitle({ cat, onRename, blockUp }: any) {
     <h2 ref={ref}
       onMouseEnter={() => { if (isMouseMode) setFocus(focusKey); }}
       onClick={handleRenameClick}
-      className={`text-4xl font-extralight tracking-tight uppercase cursor-pointer px-4 py-2 -ml-4 rounded-sm transition-all outline-none
+      className={`text-4xl font-extralight tracking-tight uppercase cursor-pointer px-4 py-2 -ml-4 rounded-sm outline-none
         ${focused ? 'bg-white text-black scale-105 shadow-[0_0_20px_rgba(255,255,255,0.4)]' : 'hover:text-[#b5924d]'}`}>
       {cat.name}
     </h2>
@@ -375,7 +414,7 @@ function FocusableButton({ onClick, icon, label, variant, focusKey: customFocusK
   return (
     <button ref={ref} onClick={onClick}
       onMouseEnter={() => { if (isMouseMode) setFocus(focusKey); }}
-      className={`transition-all duration-300 outline-none
+      className={`outline-none
         ${label ? 'px-4 py-2 rounded-sm' : 'w-10 h-10 flex items-center justify-center border rounded-full'}
         ${focused
           ? 'bg-white text-black scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)] border-white'
@@ -395,16 +434,17 @@ function FocusableButton({ onClick, icon, label, variant, focusKey: customFocusK
 
 function FocusableFavoriteCard({ item, catId, isFirstItem, onPlay, onRemove, onMove }: any) {
   const id = item.stream_id || item.series_id || item.id;
+  const uniqueId = `${catId}_${id}`;
   const isChannel = item.stream_type === 'live' || (!item.series_id && !item.container_extension && item.type !== 'series' && item.type !== 'movie');
   const [active, setActive] = useState(false);
   const hoverTimeout = React.useRef<any>(null);
 
-  const imgKey = isFirstItem ? 'FIRST_FAV_ITEM' : `IMG_${id}`;
+  const imgKey = isFirstItem ? 'FIRST_FAV_ITEM' : `IMG_${uniqueId}`;
 
   // Wrapper gives us the focusKey context for children — but we DON'T use its `focused`
-  // because the actual spatial focus lands on IMG_${id}, not on CARD_${id}.
+  // because the actual spatial focus lands on IMG_${uniqueId}, not on CARD_${uniqueId}.
   const { ref: wrapRef, focusKey } = useFocusable({
-    focusKey: `CARD_${id}`,
+    focusKey: `CARD_${uniqueId}`,
     preferredChildFocusKey: imgKey,
   });
 
@@ -422,12 +462,12 @@ function FocusableFavoriteCard({ item, catId, isFirstItem, onPlay, onRemove, onM
             lastMouseY = e.clientY;
             (window as any).isMouseFocus = true;
             activate();
-            setFocus(`IMG_${id}`);
+            setFocus(imgKey);
             setTimeout(() => { (window as any).isMouseFocus = false; }, 50);
           }
         }}
         onMouseLeave={() => deactivate()}
-        className={`flex flex-col rounded-sm transition-all duration-300 border-4
+        className={`flex flex-col rounded-sm border-4
           ${active
             ? 'border-[#b5924d] scale-105 z-50 shadow-[0_0_50px_rgba(181,146,77,0.5)]'
             : 'border-transparent'}`}
@@ -452,18 +492,15 @@ function FocusableFavoriteCard({ item, catId, isFirstItem, onPlay, onRemove, onM
              paddingTop: active ? '0.75rem' : '0px',
              paddingBottom: active ? '0.75rem' : '0px',
              paddingLeft: '0.75rem',
-             paddingRight: '0.75rem',
-             transition: active 
-               ? 'max-height 200ms ease-out 0s, opacity 200ms ease-out 0s, padding 200ms ease-out 0s' 
-               : 'opacity 0s linear 0s, max-height 300ms ease-in 400ms, padding 300ms ease-in 400ms'
+             paddingRight: '0.75rem'
           }}
         >
-          <ActionBtn focusable={active} focusKey={`MOVE_L_${id}`} onClick={() => onMove(catId, id, 'left')} onFocus={activate} onBlur={deactivate}
+          <ActionBtn focusable={active} focusKey={`MOVE_L_${uniqueId}`} onClick={() => onMove(catId, id, 'left')} onFocus={activate} onBlur={deactivate}
             exitLeftToSidebar
             icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>} />
-          <ActionBtn focusable={active} focusKey={`DEL_${id}`} danger onClick={() => onRemove(catId, id)} onFocus={activate} onBlur={deactivate}
+          <ActionBtn focusable={active} focusKey={`DEL_${uniqueId}`} danger onClick={() => onRemove(catId, id)} onFocus={activate} onBlur={deactivate}
             icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>} />
-          <ActionBtn focusable={active} focusKey={`MOVE_R_${id}`} onClick={() => onMove(catId, id, 'right')} onFocus={activate} onBlur={deactivate}
+          <ActionBtn focusable={active} focusKey={`MOVE_R_${uniqueId}`} onClick={() => onMove(catId, id, 'right')} onFocus={activate} onBlur={deactivate}
             icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>} />
         </div>
       </div>
@@ -514,7 +551,7 @@ function FocusableCardImage({ id, item, isChannel, onClick, onFocus, onBlur, cus
           if (e.currentTarget.src !== fallback) { e.currentTarget.src = fallback; }
         }}
         alt={item.name}
-        className={`w-full h-full transition-transform duration-500 ${isChannel ? 'object-contain p-10' : 'object-cover'}`}
+        className={`w-full h-full ${isChannel ? 'object-contain p-10' : 'object-cover'}`}
       />
       {isChannel && (
         <div className="absolute top-2 left-2 bg-[#b5924d] text-[7px] font-bold px-2 py-1 tracking-widest text-black uppercase z-20 shadow-lg">LIVE</div>
@@ -563,7 +600,7 @@ function ActionBtn({ focusKey: fk, onClick, icon, danger, onFocus, onBlur, exitL
   return (
     <button ref={ref} onClick={onClick}
       onMouseEnter={() => { if (isMouseMode) setFocus(focusKey); }}
-      className={`w-11 h-11 flex items-center justify-center rounded-full transition-all duration-200
+      className={`w-11 h-11 flex items-center justify-center rounded-full
         ${focused
           ? 'bg-[#b5924d] text-black scale-125 shadow-[0_0_20px_rgba(181,146,77,0.6)]'
           : danger ? 'text-red-400 bg-red-500/10' : 'text-white/60 bg-white/5'}`}>
@@ -652,10 +689,10 @@ function SortDropdown({ catId, currentSort, setSortOrder, blockUp }: any) {
   );
 }
 
-function SortOption({ opt, currentSort, onSelect, catId, index, totalOptions, closeMenu }: any) {
+function SortOption({ opt, currentSort, onSelect, catId, index, totalOptions, closeMenu, blockUp, cat }: any) {
   const isActive = currentSort === opt.value || (!currentSort && opt.value === 'default');
   const { ref, focused, focusKey } = useFocusable({
-    focusKey: `SORT_OPT_${catId}_${index}`,
+    focusKey: blockUp ? 'FIRST_FAV_TITLE' : `CAT_TITLE_${cat.id}`,
     onEnterPress: onSelect,
     onArrowPress: (direction) => {
       if (direction === 'left' || direction === 'right') {

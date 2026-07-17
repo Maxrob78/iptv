@@ -86,14 +86,21 @@ export default function AppWrapper({ Component, pageProps }: any) {
       }
     }
 
-    // Gestion de l'inactivité
+    // Cleanup logic for hydration and electron
+    return () => {
+      unsub();
+    };
+  }, [router]);
+
+  // Gestion de l'inactivité (Veille Active)
+  useEffect(() => {
     let idleTimer: any;
     const resetTimer = () => {
       setIsIdle(false);
       clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
         setIsIdle(true);
-      }, IDLE_TIMEOUT);
+      }, 5 * 60 * 1000); // 5 minutes
     };
 
     const handleGlobalBack = (e: KeyboardEvent) => {
@@ -122,19 +129,18 @@ export default function AppWrapper({ Component, pageProps }: any) {
       }
     };
 
-    window.addEventListener('keydown', resetTimer);
-    window.addEventListener('mousemove', resetTimer);
+    window.addEventListener('keydown', resetTimer, { capture: true });
+    window.addEventListener('mousemove', resetTimer, { capture: true });
     window.addEventListener('keydown', handleGlobalBack);
     resetTimer();
 
     return () => {
-      unsub();
-      window.removeEventListener('keydown', resetTimer);
-      window.removeEventListener('mousemove', resetTimer);
+      window.removeEventListener('keydown', resetTimer, { capture: true });
+      window.removeEventListener('mousemove', resetTimer, { capture: true });
       window.removeEventListener('keydown', handleGlobalBack);
       clearTimeout(idleTimer);
     };
-  }, [router]);
+  }, []);
 
   const { activeProfile } = useProfileStore();
   const { isRefreshing } = useDataStore();

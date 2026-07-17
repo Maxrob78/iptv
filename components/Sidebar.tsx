@@ -44,19 +44,25 @@ export function Sidebar() {
           <NavButton customFocusKey="NAV_SERIES" icon="🍿" label="Séries" active={router.pathname.includes('/series')} onClick={() => router.push('/series')} />
           <NavButton customFocusKey="NAV_FAVORITES" icon="✨" label="Favoris" active={router.pathname.includes('/favorites')} onClick={() => router.push('/favorites')} />
           <NavButton customFocusKey="NAV_REMOTE" icon="📱" label="Remote" active={router.pathname.includes('/remote')} onClick={() => router.push('/remote')} />
-          {!isTV && <NavButton icon="🏗️" label="Studio" active={router.pathname.includes('/studio')} onClick={() => router.push('/studio')} />}
           <NavButton 
+            customFocusKey="NAV_REFRESH"
             icon="🔄" 
             label="Actualiser" 
             onClick={() => {
               startRefresh();
-              router.push('/');
+              if (router.pathname !== '/') {
+                router.push('/');
+              }
+              // Force le focus à rester sur le bouton après le rechargement et la navigation
+              setTimeout(() => setFocus('NAV_REFRESH'), 250);
+              setTimeout(() => setFocus('NAV_REFRESH'), 500); // Double sécurité
             }} 
           />
           
           <div className="pt-8 mt-8 border-t border-white/5">
              <NavButton 
-                icon={activeProfile ? <img src={activeProfile.avatar} className="w-5 h-5 rounded-full" alt=""/> : "🎭"} 
+                isProfile={true}
+                icon={activeProfile ? <img src={activeProfile.avatar} className="w-12 h-12 rounded-full border border-white/20 object-cover transform-gpu will-change-transform [backface-visibility:hidden]" style={{ imageRendering: 'high-quality' }} alt=""/> : <span className="text-3xl">🎭</span>} 
                 label={activeProfile ? activeProfile.name : "Profils"} 
                 active={router.pathname === '/profiles'} 
                 onClick={() => {
@@ -67,22 +73,12 @@ export function Sidebar() {
              />
           </div>
         </nav>
-
-        <div className="p-8 border-t border-white/5">
-           <div className="hidden lg:block bg-white/[0.02] p-4 rounded-xl border border-white/5">
-              <div className="flex items-center space-x-2 mb-1">
-                  <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse shadow-[0_0_5px_green]" />
-                  <p className="text-[8px] font-bold text-[#b5924d] uppercase tracking-widest">Interface</p>
-              </div>
-              <p className="text-[10px] text-gray-500 font-medium">Système Actif</p>
-           </div>
-        </div>
       </aside>
     </FocusContext.Provider>
   );
 }
 
-function NavButton({ icon, label, active = false, onClick, isFirst, isLast, customFocusKey }: { icon: React.ReactNode, label: string, active?: boolean, onClick: () => void, isFirst?: boolean, isLast?: boolean, customFocusKey?: string}) {
+function NavButton({ icon, label, active = false, onClick, isFirst, isLast, customFocusKey, isProfile }: { icon: React.ReactNode, label: string, active?: boolean, onClick: () => void, isFirst?: boolean, isLast?: boolean, customFocusKey?: string, isProfile?: boolean}) {
   const { ref, focused, focusKey } = useFocusable({
     focusKey: customFocusKey,
     onEnterPress: onClick,
@@ -108,8 +104,8 @@ function NavButton({ icon, label, active = false, onClick, isFirst, isLast, cust
                  ${active ? 'bg-white/[0.05] text-white shadow-inner' : 'text-gray-400 hover:text-white hover:bg-white/[0.02]'}`}
     >
       <div className={`absolute inset-0 bg-gradient-to-r from-[#b5924d]/0 via-[#b5924d]/10 to-transparent translate-x-[-100%] transition-transform duration-700 ${focused ? 'translate-x-[100%]' : ''}`} />
-      <span className={`text-xl transition-all duration-300 z-10 ${active || focused ? 'scale-110 drop-shadow-[0_0_12px_rgba(181,146,77,0.8)] grayscale-0' : 'grayscale group-hover:grayscale-0'}`}>{icon}</span>
-      <span className={`hidden lg:block text-[11px] font-bold uppercase tracking-[0.3em] z-10 transition-colors ${active || focused ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>{label}</span>
+      <span className={`flex items-center justify-center transition-all duration-300 z-10 ${isProfile ? '' : 'text-xl'} ${active || focused ? 'scale-110' : ''} ${!isProfile && (active || focused) ? 'drop-shadow-[0_0_12px_rgba(181,146,77,0.8)]' : ''} ${!isProfile ? (active || focused ? 'grayscale-0' : 'grayscale group-hover:grayscale-0') : ''}`}>{icon}</span>
+      <span className={`hidden lg:block ${isProfile ? 'text-[13px] tracking-[0.4em]' : 'text-[11px] tracking-[0.3em]'} font-bold uppercase z-10 transition-colors ${active || focused ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>{label}</span>
       {(active || focused) && <div className="ml-auto w-1.5 h-1.5 bg-[#b5924d] rounded-full shadow-[0_0_10px_#b5924d]" />}
     </button>
   );

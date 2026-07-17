@@ -560,8 +560,8 @@ function FocusableHeroButton({ children, onClick, primary, focusKey: customFocus
       }}
       className={`px-10 py-4 rounded-xl font-bold text-[9px] uppercase tracking-[0.4em] transition-all duration-300 flex items-center space-x-3 outline-none relative overflow-hidden glass-reflection
                  ${primary
-          ? (focused ? 'bg-gradient-to-r from-white to-gray-200 text-black scale-105 shadow-[0_0_40px_rgba(255,255,255,0.4)]' : 'bg-gradient-to-r from-[#b5924d] to-[#8a6e38] text-black shadow-[0_10px_30px_rgba(181,146,77,0.3)]')
-          : (focused ? 'bg-white text-black scale-105 shadow-[0_0_30px_rgba(255,255,255,0.2)]' : 'bg-white/5 backdrop-blur-xl text-white border border-white/10 hover:bg-white/10')}`}
+          ? (focused ? 'bg-gradient-to-r from-white to-gray-200 text-black scale-105 shadow-[0_0_40px_rgba(255,255,255,0.4)] border border-transparent' : 'bg-gradient-to-r from-[#b5924d] to-[#8a6e38] text-black shadow-[0_10px_30px_rgba(181,146,77,0.3)] border border-transparent')
+          : (focused ? 'bg-white text-black scale-105 shadow-[0_0_30px_rgba(255,255,255,0.2)] border border-transparent' : 'bg-white/5 backdrop-blur-xl text-white border border-white/10 hover:bg-white/10')}`}
     >
       {children}
     </button>
