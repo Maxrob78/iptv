@@ -42,7 +42,7 @@ export default function FavoritesPage() {
     trackChildren: true,
     onArrowPress: (direction) => {
       if (direction === 'left') {
-        setFocus('SIDEBAR');
+        setFocus('NAV_FAVORITES');
         return false;
       }
       return true;
@@ -397,6 +397,7 @@ function FocusableFavoriteCard({ item, catId, isFirstItem, onPlay, onRemove, onM
   const id = item.stream_id || item.series_id || item.id;
   const isChannel = item.stream_type === 'live' || (!item.series_id && !item.container_extension && item.type !== 'series' && item.type !== 'movie');
   const [active, setActive] = useState(false);
+  const hoverTimeout = React.useRef<any>(null);
 
   const imgKey = isFirstItem ? 'FIRST_FAV_ITEM' : `IMG_${id}`;
 
@@ -429,10 +430,10 @@ function FocusableFavoriteCard({ item, catId, isFirstItem, onPlay, onRemove, onM
         className={`flex flex-col rounded-sm transition-all duration-300 border-4
           ${active
             ? 'border-[#b5924d] scale-105 z-50 shadow-[0_0_50px_rgba(181,146,77,0.5)]'
-            : 'border-transparent ring-1 ring-white/10'}`}
+            : 'border-transparent'}`}
       >
         {/* Image fills the aspect ratio */}
-        <div className={`relative overflow-hidden bg-black ${isChannel ? 'aspect-square' : 'aspect-[3/4.5]'}`}>
+        <div className={`relative overflow-hidden bg-black ring-1 ring-white/10 rounded-sm ${isChannel ? 'aspect-square' : 'aspect-[3/4.5]'}`}>
           <FocusableCardImage
             id={id} item={item} isChannel={isChannel}
             onClick={() => onPlay(item)}
@@ -442,8 +443,21 @@ function FocusableFavoriteCard({ item, catId, isFirstItem, onPlay, onRemove, onM
           />
         </div>
 
-        {/* Action bar — always mounted to prevent layout jumps and unmount focus bugs, hidden via opacity */}
-        <div className={`flex items-center justify-around p-3 bg-black/95 backdrop-blur-xl border-t border-[#b5924d]/30 transition-opacity duration-150 ${active ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        {/* Action bar — asymmetric transitions: opens smoothly, closes visually instantly but delays layout collapse to prevent grid bouncing */}
+        <div 
+          className={`flex items-center justify-around bg-black/95 backdrop-blur-xl border-t overflow-hidden ${active ? 'border-[#b5924d]/30' : 'pointer-events-none border-transparent'}`}
+          style={{
+             maxHeight: active ? '80px' : '0px',
+             opacity: active ? 1 : 0,
+             paddingTop: active ? '0.75rem' : '0px',
+             paddingBottom: active ? '0.75rem' : '0px',
+             paddingLeft: '0.75rem',
+             paddingRight: '0.75rem',
+             transition: active 
+               ? 'max-height 200ms ease-out 0s, opacity 200ms ease-out 0s, padding 200ms ease-out 0s' 
+               : 'opacity 0s linear 0s, max-height 300ms ease-in 400ms, padding 300ms ease-in 400ms'
+          }}
+        >
           <ActionBtn focusable={active} focusKey={`MOVE_L_${id}`} onClick={() => onMove(catId, id, 'left')} onFocus={activate} onBlur={deactivate}
             exitLeftToSidebar
             icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>} />
@@ -471,7 +485,7 @@ function FocusableCardImage({ id, item, isChannel, onClick, onFocus, onBlur, cus
     onArrowPress: (direction) => {
       if (direction === 'left') {
         if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
-          setFocus('SIDEBAR');
+          setFocus('NAV_FAVORITES');
           return false;
         }
       }
@@ -535,7 +549,7 @@ function ActionBtn({ focusKey: fk, onClick, icon, danger, onFocus, onBlur, exitL
       // Hand off explicitly instead.
       if (exitLeftToSidebar && direction === 'left') {
         if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
-          setFocus('SIDEBAR');
+          setFocus('NAV_FAVORITES');
           return false;
         }
       }
