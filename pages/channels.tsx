@@ -336,7 +336,7 @@ function FocusableChannel({ ch, idx, onClick, onLongPress }: any) {
         </div>
         {/* Unfocused Text (2 lines, floating below) */}
         <div className={`absolute inset-x-0 bottom-0 px-4 py-3 z-10 translate-y-full transition-opacity duration-300 ${focused ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-          <p className={`text-[10px] xl:text-xs text-center font-medium text-white line-clamp-2 leading-tight uppercase tracking-[0.2em]`}>{ch.name}</p>
+          <p className={`text-[10px] xl:text-xs text-center font-medium text-white line-clamp-3 leading-tight uppercase tracking-[0.2em]`}>{ch.name}</p>
         </div>
 
         {/* Focused Text (Full text, inside the card with backdrop) */}

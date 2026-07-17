@@ -62,11 +62,10 @@ export function Sidebar() {
           <div className="pt-8 mt-8 border-t border-white/5">
              <NavButton 
                 isProfile={true}
-                icon={activeProfile ? <img src={activeProfile.avatar} className="w-12 h-12 rounded-full border border-white/20 object-cover transform-gpu will-change-transform [backface-visibility:hidden]" style={{ imageRendering: 'high-quality' }} alt=""/> : <span className="text-3xl">🎭</span>} 
+                icon={activeProfile ? <ProfileAvatar src={activeProfile.avatar} /> : <span className="text-3xl">🎭</span>} 
                 label={activeProfile ? activeProfile.name : "Profils"} 
                 active={router.pathname === '/profiles'} 
                 onClick={() => {
-                   setActiveProfile(null);
                    router.push('/profiles');
                 }} 
                 isLast={true}
@@ -104,9 +103,35 @@ function NavButton({ icon, label, active = false, onClick, isFirst, isLast, cust
                  ${active ? 'bg-white/[0.05] text-white shadow-inner' : 'text-gray-400 hover:text-white hover:bg-white/[0.02]'}`}
     >
       <div className={`absolute inset-0 bg-gradient-to-r from-[#b5924d]/0 via-[#b5924d]/10 to-transparent translate-x-[-100%] transition-transform duration-700 ${focused ? 'translate-x-[100%]' : ''}`} />
-      <span className={`flex items-center justify-center transition-all duration-300 z-10 ${isProfile ? '' : 'text-xl'} ${active || focused ? 'scale-110' : ''} ${!isProfile && (active || focused) ? 'drop-shadow-[0_0_12px_rgba(181,146,77,0.8)]' : ''} ${!isProfile ? (active || focused ? 'grayscale-0' : 'grayscale group-hover:grayscale-0') : ''}`}>{icon}</span>
+      <span className={`flex items-center justify-center transition-all duration-300 z-10 transform-gpu ${isProfile ? '' : 'text-xl'} ${active || focused ? 'scale-110' : ''} ${!isProfile && (active || focused) ? 'drop-shadow-[0_0_12px_rgba(181,146,77,0.8)]' : ''} ${!isProfile ? (active || focused ? 'grayscale-0' : 'grayscale group-hover:grayscale-0') : ''}`}>{icon}</span>
       <span className={`hidden lg:block ${isProfile ? 'text-[13px] tracking-[0.4em]' : 'text-[11px] tracking-[0.3em]'} font-bold uppercase z-10 transition-colors ${active || focused ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>{label}</span>
       {(active || focused) && <div className="ml-auto w-1.5 h-1.5 bg-[#b5924d] rounded-full shadow-[0_0_10px_#b5924d]" />}
     </button>
+  );
+}
+
+function ProfileAvatar({ src }: { src: string }) {
+  const [blurred, setBlurred] = React.useState(false);
+
+  React.useEffect(() => {
+    setBlurred(false);
+    // Force un repaint sur un frame ultérieur : contourne le bug WebKit TV
+    // où filter: blur() n'est appliqué qu'après un repaint déclenché
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(() => setBlurred(true));
+      return () => cancelAnimationFrame(raf2);
+    });
+    return () => cancelAnimationFrame(raf1);
+  }, [src]);
+
+  return (
+    <img
+      src={src}
+      alt=""
+      onLoad={() => setBlurred(true)} // filet de sécurité si l'image vient du cache
+      className={`w-12 h-12 rounded-full border border-white/20 object-cover transition-[filter] duration-100 ${
+        blurred ? 'blur-[0.5px]' : ''
+      }`}
+    />
   );
 }

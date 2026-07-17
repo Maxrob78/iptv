@@ -508,7 +508,7 @@ function FocusableEpisodeCard({ ep, history, onClick, focusKey: customFocusKey }
             </div>
             <div className="flex-1 min-w-0 pr-10">
                 <p className={`text-[11px] font-bold uppercase tracking-[0.5em] mb-3 transition-colors ${focused ? 'text-white' : 'text-[#b5924d]'}`}>Épisode {ep.episode_num}</p>
-                <h3 className="text-xl font-extralight text-white line-clamp-2 transition-colors leading-tight">{ep.title}</h3>
+                <h3 className="text-xl font-extralight text-white line-clamp-3 transition-colors leading-tight">{ep.title}</h3>
             </div>
         </div>
 
