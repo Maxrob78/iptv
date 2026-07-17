@@ -565,7 +565,7 @@ function FocusableCardImage({ id, item, isChannel, onClick, onFocus, onBlur, cus
       )}
 
       <div className="absolute inset-x-0 bottom-0 p-3 z-10 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
-        <p className="text-[10px] font-bold text-white truncate uppercase tracking-[0.15em]">{item.name}</p>
+        <p className="text-[10px] font-bold text-white line-clamp-2 leading-tight uppercase tracking-[0.15em]">{item.name}</p>
       </div>
     </div>
   );

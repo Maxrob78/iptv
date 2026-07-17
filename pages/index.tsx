@@ -558,7 +558,7 @@ function FocusableHeroButton({ children, onClick, primary, focusKey: customFocus
           setFocus(focusKey);
         }
       }}
-      className={`px-10 py-4 rounded-xl font-bold text-[9px] uppercase tracking-[0.4em] transition-all duration-300 flex items-center space-x-3 outline-none relative overflow-hidden glass-reflection
+      className={`px-10 py-4 rounded-xl font-bold text-[9px] uppercase tracking-[0.4em] transition-all duration-300 flex items-center space-x-3 outline-none relative overflow-hidden glass-reflection ${focused ? 'is-focused' : ''}
                  ${primary
           ? (focused ? 'bg-gradient-to-r from-white to-gray-200 text-black scale-105 shadow-[0_0_40px_rgba(255,255,255,0.4)] border border-transparent' : 'bg-gradient-to-r from-[#b5924d] to-[#8a6e38] text-black shadow-[0_10px_30px_rgba(181,146,77,0.3)] border border-transparent')
           : (focused ? 'bg-white text-black scale-105 shadow-[0_0_30px_rgba(255,255,255,0.2)] border border-transparent' : 'bg-white/5 backdrop-blur-xl text-white border border-white/10 hover:bg-white/10')}`}
@@ -618,26 +618,32 @@ function DashboardRow({ title, items, onClick, onViewAll, onRemove, isChannel = 
         className="flex space-x-12 overflow-x-auto pb-40 pt-10 scroll-smooth no-scrollbar p-20 -m-20"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {items.map((item: any, idx: number) => (
-          <FocusableCard
-            key={item.stream_id || item.series_id || item.id || idx}
-            item={item}
-            onClick={onClick}
-            onRemove={onRemove}
-            isChannel={isChannel}
-            isHistory={isHistory}
-            // Focus key stable et prévisible pour l'historique : indispensable pour pouvoir
-            // rediriger le focus vers une carte précise après suppression d'un item
-            // (norigin-spatial-navigation ne peut retrouver un élément que via sa focusKey).
-            customFocusKey={isHistory ? `HISTORY_ITEM_${item.id}` : undefined}
-          />
-        ))}
+        {items.map((item: any, idx: number) => {
+          const getFk = (i: any, index: number) => isHistory ? `HISTORY_ITEM_${i.id}` : `ROW_${title.replace(/[^a-zA-Z0-9]/g, '')}_ITEM_${index}`;
+          const currentFk = getFk(item, idx);
+          const prevFk = idx > 0 ? getFk(items[idx - 1], idx - 1) : null;
+          const nextFk = idx < items.length - 1 ? getFk(items[idx + 1], idx + 1) : null;
+
+          return (
+            <FocusableCard
+              key={currentFk}
+              item={item}
+              onClick={onClick}
+              onRemove={onRemove}
+              isChannel={isChannel}
+              isHistory={isHistory}
+              customFocusKey={currentFk}
+              prevFocusKey={prevFk}
+              nextFocusKey={nextFk}
+            />
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFocusKey }: any) {
+function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFocusKey, prevFocusKey, nextFocusKey }: any) {
   const rating = useRatingStore(state => {
     const profileId = useProfileStore.getState().activeProfile?.id || 'default';
     return state.ratings[profileId]?.[String(item.stream_id || item.series_id || item.id)]?.rating;
@@ -647,6 +653,14 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFo
     focusKey: customFocusKey,
     onEnterPress: () => onClick(item),
     onArrowPress: (direction) => {
+      if (direction === 'left' && prevFocusKey) {
+        setFocus(prevFocusKey);
+        return false;
+      }
+      if (direction === 'right' && nextFocusKey) {
+        setFocus(nextFocusKey);
+        return false;
+      }
       if (direction === 'left') {
         if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
           setFocus('NAV_INDEX');
@@ -702,7 +716,7 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFo
           setTimeout(() => { (window as any).isMouseFocus = false; }, 50);
         }
       }}
-      className={`flex-shrink-0 cursor-pointer group relative transition-all duration-500 glass-reflection isolate
+      className={`flex-shrink-0 cursor-pointer group relative transition-all duration-500 glass-reflection ${focused ? 'is-focused' : ''} isolate
                  ${focused ? 'ring-[#b5924d] ring-4 scale-105 shadow-[0_40px_80px_rgba(181,146,77,0.3)] z-40 transform-gpu' : 'ring-white/5 ring-1 opacity-100 z-10'}
                  ${isChannel ? 'w-48 h-48 rounded-2xl' : 'w-56 aspect-[3/4.5] rounded-xl'}`}
     >
@@ -731,7 +745,7 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFo
         {!isChannel && (
           <div className={`absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent transition-all duration-500 flex flex-col justify-end p-8 ${focused ? 'opacity-100' : 'opacity-0'}`}>
             <span className="text-[8px] font-bold uppercase tracking-[0.3em] text-[#b5924d] mb-2">{item.quality || 'MASTER'}</span>
-            <p className="text-base font-light tracking-tight text-white truncate">{item.name || item.title}</p>
+            <p className="text-base font-light tracking-tight text-white line-clamp-2 leading-tight">{item.name || item.title}</p>
           </div>
         )}
 
@@ -750,7 +764,7 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFo
 
         {isChannel && (
           <div className={`absolute inset-x-0 bottom-0 p-4 bg-black/60 transition-transform backdrop-blur-md ${focused ? 'translate-y-0' : 'translate-y-full'}`}>
-            <p className="text-[10px] text-center font-medium text-white truncate uppercase tracking-widest">{item.name}</p>
+            <p className="text-[10px] text-center font-medium text-white line-clamp-2 leading-tight uppercase tracking-widest">{item.name}</p>
           </div>
         )}
       </div>
