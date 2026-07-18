@@ -240,6 +240,14 @@ export default function Home() {
 
   const handlePlayItem = (item: any, type: 'live' | 'movie' | 'series', forcedStartTime?: number) => {
     if (launchingVideo) return; // Anti-double clic
+
+    // Rediriger systématiquement vers la page de la série (demande de l'utilisateur)
+    if (type === 'series') {
+      const targetSeriesId = item.seriesId || item.series_id || item.id;
+      router.push(`/series/${targetSeriesId}`);
+      return;
+    }
+
     const streamId = item.stream_id || item.id;
     const streamUrl = xtreamApi.getStreamUrl(streamId, type, item.container_extension || (type === 'live' ? 'ts' : 'mkv'));
 
