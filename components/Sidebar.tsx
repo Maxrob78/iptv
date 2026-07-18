@@ -25,18 +25,18 @@ export function Sidebar() {
 
   return (
     <FocusContext.Provider value={focusKey}>
-      <aside 
+      <aside
         ref={ref}
         className="w-20 lg:w-72 bg-black/40 backdrop-blur-3xl border-r border-[#b5924d]/10 flex flex-col fixed h-full z-40 transition-all duration-500 font-['Inter'] shadow-[20px_0_50px_rgba(0,0,0,0.5)]"
       >
         <div className="p-8 flex justify-center lg:justify-start items-center space-x-4 group">
           <div className="w-10 h-10 bg-gradient-to-br from-[#b5924d] to-[#7a5f2a] rounded-xl font-black flex items-center justify-center text-xl shadow-lg shadow-[#b5924d]/20 text-black font-serif italic">P</div>
           <div className="hidden lg:block">
-              <h2 className="font-extralight text-xl tracking-[0.2em] text-white">PLATINUM</h2>
-              <p className="text-[7px] font-black tracking-[0.5em] text-[#b5924d] uppercase opacity-60">Signature Edition</p>
+            <h2 className="font-extralight text-xl tracking-[0.2em] text-white">PLATINUM</h2>
+            <p className="text-[7px] font-black tracking-[0.5em] text-[#b5924d] uppercase opacity-60">Signature Edition</p>
           </div>
         </div>
-        
+
         <nav className="flex-1 mt-12 space-y-2 px-4">
           <NavButton customFocusKey="NAV_INDEX" icon="🏠" label="Index" active={router.pathname === '/'} onClick={() => router.push('/')} isFirst={true} />
           <NavButton customFocusKey="NAV_MOVIES" icon="🎬" label="Cinéma" active={router.pathname.includes('/movies')} onClick={() => router.push('/movies')} />
@@ -44,10 +44,10 @@ export function Sidebar() {
           <NavButton customFocusKey="NAV_SERIES" icon="🍿" label="Séries" active={router.pathname.includes('/series')} onClick={() => router.push('/series')} />
           <NavButton customFocusKey="NAV_FAVORITES" icon="✨" label="Favoris" active={router.pathname.includes('/favorites')} onClick={() => router.push('/favorites')} />
           <NavButton customFocusKey="NAV_REMOTE" icon="📱" label="Remote" active={router.pathname.includes('/remote')} onClick={() => router.push('/remote')} />
-          <NavButton 
+          <NavButton
             customFocusKey="NAV_REFRESH"
-            icon="🔄" 
-            label="Actualiser" 
+            icon="🔄"
+            label="Actualiser"
             onClick={() => {
               startRefresh();
               if (router.pathname !== '/') {
@@ -56,20 +56,20 @@ export function Sidebar() {
               // Force le focus à rester sur le bouton après le rechargement et la navigation
               setTimeout(() => setFocus('NAV_REFRESH'), 250);
               setTimeout(() => setFocus('NAV_REFRESH'), 500); // Double sécurité
-            }} 
+            }}
           />
-          
+
           <div className="pt-8 mt-8 border-t border-white/5">
-             <NavButton 
-                isProfile={true}
-                icon={activeProfile ? <ProfileAvatar src={activeProfile.avatar} /> : <span className="text-3xl">🎭</span>} 
-                label={activeProfile ? activeProfile.name : "Profils"} 
-                active={router.pathname === '/profiles'} 
-                onClick={() => {
-                   router.push('/profiles');
-                }} 
-                isLast={true}
-             />
+            <NavButton
+              isProfile={true}
+              icon={activeProfile ? <ProfileAvatar src={activeProfile.avatar} /> : <span className="text-3xl">🎭</span>}
+              label={activeProfile ? activeProfile.name : "Profils"}
+              active={router.pathname === '/profiles'}
+              onClick={() => {
+                router.push('/profiles');
+              }}
+              isLast={true}
+            />
           </div>
         </nav>
       </aside>
@@ -77,7 +77,7 @@ export function Sidebar() {
   );
 }
 
-function NavButton({ icon, label, active = false, onClick, isFirst, isLast, customFocusKey, isProfile }: { icon: React.ReactNode, label: string, active?: boolean, onClick: () => void, isFirst?: boolean, isLast?: boolean, customFocusKey?: string, isProfile?: boolean}) {
+function NavButton({ icon, label, active = false, onClick, isFirst, isLast, customFocusKey, isProfile }: { icon: React.ReactNode, label: string, active?: boolean, onClick: () => void, isFirst?: boolean, isLast?: boolean, customFocusKey?: string, isProfile?: boolean }) {
   const { ref, focused, focusKey } = useFocusable({
     focusKey: customFocusKey,
     onEnterPress: onClick,
@@ -94,7 +94,7 @@ function NavButton({ icon, label, active = false, onClick, isFirst, isLast, cust
   });
 
   return (
-    <button 
+    <button
       ref={ref}
       onClick={onClick}
       onMouseEnter={() => setFocus(focusKey)}
@@ -129,9 +129,8 @@ function ProfileAvatar({ src }: { src: string }) {
       src={src}
       alt=""
       onLoad={() => setBlurred(true)} // filet de sécurité si l'image vient du cache
-      className={`w-12 h-12 rounded-full border border-white/20 object-cover transition-[filter] duration-100 ${
-        blurred ? 'blur-[0.5px]' : ''
-      }`}
+      className={`w-12 h-12 rounded-full border border-white/20 object-cover transition-[filter] duration-100 ${blurred ? 'blur-[0.5px]' : ''
+        }`}
     />
   );
 }

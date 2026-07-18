@@ -751,7 +751,7 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFo
 
 
         {!isChannel && (
-          <div className={`absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent transition-all duration-500 flex flex-col justify-end p-8 ${focused ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent transition-all duration-500 flex flex-col justify-end p-8 ${focused ? 'opacity-100' : 'opacity-0'}`}>
             <span className="text-[8px] font-bold uppercase tracking-[0.3em] text-[#b5924d] mb-2">{item.quality || 'MASTER'}</span>
             <p className="text-base font-light tracking-tight text-white line-clamp-3 leading-tight">{item.name || item.title}</p>
           </div>
