@@ -36,7 +36,9 @@ export default function SeriesDetail() {
   });
 
   const { ref, focusKey } = useFocusable({
-    focusKey: 'SERIES_DETAIL'
+    focusKey: 'MAIN_CONTENT',
+    saveLastFocusedChild: true,
+    trackChildren: true
   });
 
   const userRating = useRatingStore(state => {
@@ -221,8 +223,8 @@ export default function SeriesDetail() {
 
   return (
     <div className="flex-1 flex bg-[#050505] text-white min-h-screen font-['Inter']">
+      <Sidebar />
       <FocusContext.Provider value={focusKey}>
-        <Sidebar />
         <main ref={ref} className="ml-20 lg:ml-72 flex-1 relative overflow-y-auto no-scrollbar pb-40">
         
         {launchingVideo && (
@@ -382,6 +384,10 @@ function FocusableBackButton({ onClick }: any) {
         setFocus('RATE_SERIES_BTN');
         return false;
       }
+      if (direction === 'left') {
+        setFocus('NAV_SERIES');
+        return false;
+      }
       return true;
     },
     onFocus: () => {
@@ -419,6 +425,12 @@ function FocusableSeasonButton({ s, isActive, onClick, focusKey: customFocusKey 
       if (direction === 'up') {
         setFocus('RATE_SERIES_BTN');
         return false;
+      }
+      if (direction === 'left') {
+        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
+          setFocus('NAV_SERIES');
+          return false;
+        }
       }
       return true;
     },
@@ -473,6 +485,15 @@ function FocusableEpisodeCard({ ep, history, onClick, focusKey: customFocusKey }
   const { ref, focused, focusKey } = useFocusable({
     focusKey: customFocusKey,
     onEnterPress: () => onClick(ep),
+    onArrowPress: (direction) => {
+      if (direction === 'left') {
+        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
+          setFocus('NAV_SERIES');
+          return false;
+        }
+      }
+      return true;
+    },
     onFocus: () => {
       if (!(window as any).isMouseFocus) {
         ref.current.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
@@ -542,6 +563,12 @@ function FocusableAction({ children, onClick, focusKey: customFocusKey }: any) {
       if (direction === 'up') {
         setFocus('BACK_BTN');
         return false;
+      }
+      if (direction === 'left') {
+        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
+          setFocus('NAV_SERIES');
+          return false;
+        }
       }
       return true;
     },

@@ -62,7 +62,7 @@ interface DataState {
   moveCategory: (id: string, direction: 'up' | 'down') => void;
   addItemToCategory: (categoryId: string, item: any) => void;
   removeItemFromCategory: (categoryId: string, itemId: string | number) => void;
-  moveItemInCategory: (categoryId: string, itemId: string | number, direction: 'left' | 'right') => void;
+  moveItemInCategory: (categoryId: string, itemId: string | number, targetItemId: string | number) => void;
   setCategorySortOrder: (categoryId: string, sortOrder: string) => void;
 
   // Bibliothèque Locale (Profil dépendant)
@@ -363,7 +363,7 @@ export const useDataStore = create<DataState>()(
         });
       },
 
-      moveItemInCategory: (categoryId, itemId, direction) => {
+      moveItemInCategory: (categoryId, itemId, targetItemId) => {
         const activeProfileId = useProfileStore.getState().activeProfile?.id;
         if (!activeProfileId) return;
 
@@ -371,17 +371,15 @@ export const useDataStore = create<DataState>()(
         const newCategories = currentData.favoriteCategories.map(cat => {
           if (cat.id === categoryId) {
             const index = cat.items.findIndex(i => (i.stream_id || i.series_id || i.id) === itemId);
-            if (index === -1) return cat;
+            const targetIndex = cat.items.findIndex(i => (i.stream_id || i.series_id || i.id) === targetItemId);
+            
+            if (index === -1 || targetIndex === -1) return cat;
 
             const newItems = [...cat.items];
-            const targetIndex = direction === 'left' ? index - 1 : index + 1;
-
-            if (targetIndex >= 0 && targetIndex < newItems.length) {
-              const temp = newItems[index];
-              newItems[index] = newItems[targetIndex];
-              newItems[targetIndex] = temp;
-              return { ...cat, items: newItems };
-            }
+            const temp = newItems[index];
+            newItems[index] = newItems[targetIndex];
+            newItems[targetIndex] = temp;
+            return { ...cat, items: newItems };
           }
           return cat;
         });

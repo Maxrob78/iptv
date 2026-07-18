@@ -259,6 +259,17 @@ function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItem
     }
   };
 
+  const handleMove = (catId: string, itemId: string, direction: 'left' | 'right') => {
+    const idx = sortedItems.findIndex((i: any) => (i.stream_id || i.series_id || i.id) === itemId);
+    if (idx === -1) return;
+    const targetIdx = direction === 'left' ? idx - 1 : idx + 1;
+    if (targetIdx >= 0 && targetIdx < sortedItems.length) {
+      const targetItem = sortedItems[targetIdx];
+      const targetId = targetItem.stream_id || targetItem.series_id || targetItem.id;
+      moveItemInCategory(catId, itemId, targetId);
+    }
+  };
+
   return (
     <FocusContext.Provider value={focusKey}>
       <section ref={ref}>
@@ -314,7 +325,7 @@ function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItem
               <FocusableFavoriteCard
                 key={item.stream_id || item.series_id || item.id}
                 item={item} catId={cat.id} onPlay={handlePlay}
-                onRemove={handleRemove} onMove={moveItemInCategory}
+                onRemove={handleRemove} onMove={handleMove}
                 isFirstItem={catIdx === 0 && idx === 0}
               />
             ))

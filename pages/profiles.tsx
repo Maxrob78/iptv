@@ -366,7 +366,7 @@ function FocusableProfileCard({ profile, isManaging, onSelect, onDelete }: any) 
       className="flex flex-col items-center space-y-6 group cursor-pointer relative"
     >
       <div className={`w-44 h-44 rounded-sm overflow-hidden transition-all duration-200 ring-offset-8 ring-offset-[#050505]
-                     ${focused ? 'ring-4 ring-white scale-110 shadow-[0_0_50px_rgba(255,255,255,0.2)] opacity-100' : (isManaging ? 'ring-2 ring-white/20 opacity-100 scale-100' : 'ring-0 opacity-50 scale-100')}`}>
+                     ${focused ? 'ring-4 ring-white scale-110 shadow-[0_0_50px_rgba(255,255,255,0.2)] opacity-100' : (isManaging ? 'ring-2 ring-white/20 opacity-100 scale-100' : 'ring-0 opacity-80 scale-100')}`}>
         <img src={profile.avatar} loading="lazy" decoding="async" className="w-full h-full object-cover" alt="" />
       </div>
       <span className={`text-xl font-light tracking-wide transition-all ${focused ? 'text-white translate-y-2' : 'text-gray-500'}`}>
