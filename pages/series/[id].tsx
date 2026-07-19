@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { xtreamApi } from '../../utils/xtream';
 import { Sidebar } from '../../components/Sidebar';
@@ -21,10 +21,12 @@ export default function SeriesDetail() {
   const [showRating, setShowRating] = useState(false);
   const [selectedActor, setSelectedActor] = useState<string | null>(null);
 
+  const focusSet = useRef(false);
   useEffect(() => {
-    if (!loading && data) {
+    if (!loading && data && !focusSet.current) {
       setTimeout(() => {
         setFocus('BACK_BTN');
+        focusSet.current = true;
       }, 300);
     }
   }, [loading, data]);
@@ -359,10 +361,10 @@ export default function SeriesDetail() {
                     <h3 className="text-sm font-medium uppercase tracking-[0.4em] text-gray-500 mb-6">Casting & Équipe</h3>
                     <div className="flex flex-wrap items-center gap-4">
                         {directors.map((dir, idx) => (
-                        <ActorBadge key={`dir-${idx}`} name={dir} role="Réalisateur" onClick={() => setSelectedActor(dir)} />
+                        <ActorBadge key={`dir-${idx}`} name={dir} role="Réalisateur" onClick={() => setSelectedActor(dir)} sidebarFocusKey="NAV_SERIES" />
                         ))}
                         {actors.map((actor, idx) => (
-                        <ActorBadge key={`act-${idx}`} name={actor} onClick={() => setSelectedActor(actor)} />
+                        <ActorBadge key={`act-${idx}`} name={actor} onClick={() => setSelectedActor(actor)} sidebarFocusKey="NAV_SERIES" />
                         ))}
                     </div>
                 </div>
@@ -703,10 +705,19 @@ function FocusableAction({ children, onClick, focusKey: customFocusKey }: any) {
   );
 }
 
-function ActorBadge({ name, role, onClick }: { name: string, role?: string, onClick: () => void }) {
+function ActorBadge({ name, role, onClick, sidebarFocusKey }: { name: string, role?: string, onClick: () => void, sidebarFocusKey?: string }) {
   const { ref, focused, focusKey } = useFocusable({
     focusKey: `ACTOR_BADGE_${name.replace(/[^a-zA-Z0-9]/g, '_')}`,
     onEnterPress: onClick,
+    onArrowPress: (direction) => {
+      if (direction === 'left' && sidebarFocusKey) {
+        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
+          setFocus(sidebarFocusKey);
+          return false;
+        }
+      }
+      return true;
+    },
     onFocus: () => {
       setTimeout(() => {
         window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
