@@ -184,6 +184,14 @@ export default function SeriesDetail() {
       }
     }
 
+    if (history[ep.id as string] && forcedStartTime === 0) {
+      history[ep.id as string].watched = false;
+      history[ep.id as string].progress = 0;
+      history[ep.id as string].currentTime = 0;
+      localStorage.setItem(historyKey, JSON.stringify(history));
+      setPlaybackHistory(history);
+    }
+
     setLaunchingVideo(ep.title);
     
     if (!history[ep.id as string]) {
@@ -340,15 +348,20 @@ export default function SeriesDetail() {
             isOpen={resumeModal.isOpen}
             title={resumeModal.ep?.title || ''}
             time={resumeModal.time}
-            onClose={() => setResumeModal({ ...resumeModal, isOpen: false })}
+            onClose={() => {
+                setResumeModal({ ...resumeModal, isOpen: false });
+                if (resumeModal.ep) setTimeout(() => setFocus(`EPISODE_${resumeModal.ep.id}`), 100);
+            }}
             onConfirm={() => {
                 const { ep, time } = resumeModal;
                 setResumeModal({ ...resumeModal, isOpen: false });
+                setTimeout(() => setFocus(`EPISODE_${ep.id}`), 100);
                 handlePlayEpisode(ep, time);
             }}
             onStartOver={() => {
                 const { ep } = resumeModal;
                 setResumeModal({ ...resumeModal, isOpen: false });
+                setTimeout(() => setFocus(`EPISODE_${ep.id}`), 100);
                 handlePlayEpisode(ep, 0);
             }}
         />

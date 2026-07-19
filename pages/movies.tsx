@@ -149,6 +149,14 @@ export default function Movies() {
       }
     }
 
+    if (history[vid.stream_id as string] && forcedStartTime === 0) {
+      history[vid.stream_id as string].watched = false;
+      history[vid.stream_id as string].progress = 0;
+      history[vid.stream_id as string].currentTime = 0;
+      localStorage.setItem(historyKey, JSON.stringify(history));
+      setPlaybackHistory(history);
+    }
+
     setLaunchingVideo(vid.name);
 
     // Initialiser dans l'historique si ce n'est pas déjà fait
@@ -264,15 +272,20 @@ export default function Movies() {
             isOpen={resumeModal.isOpen}
             title={resumeModal.item?.name || ''}
             time={resumeModal.time}
-            onClose={() => setResumeModal({ ...resumeModal, isOpen: false })}
+            onClose={() => {
+              setResumeModal({ ...resumeModal, isOpen: false });
+              if (resumeModal.item) setTimeout(() => setFocus(`MOVIE_${resumeModal.item.stream_id}`), 100);
+            }}
             onConfirm={() => {
               const { item, time } = resumeModal;
               setResumeModal({ ...resumeModal, isOpen: false });
+              setTimeout(() => setFocus(`MOVIE_${item.stream_id}`), 100);
               handlePlayMovie(item, time);
             }}
             onStartOver={() => {
               const { item } = resumeModal;
               setResumeModal({ ...resumeModal, isOpen: false });
+              setTimeout(() => setFocus(`MOVIE_${item.stream_id}`), 100);
               handlePlayMovie(item, 0);
             }}
           />

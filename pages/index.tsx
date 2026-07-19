@@ -201,6 +201,12 @@ export default function Home() {
   };
 
 
+  const isExcluded = (name: string) => {
+    if (!name) return false;
+    const upper = name.toUpperCase();
+    return upper.startsWith('AR|') || upper.startsWith('AR |');
+  };
+
   const isSport = (name: string) => {
     if (!name) return false;
     const lower = name.toLowerCase();
@@ -209,7 +215,7 @@ export default function Home() {
 
   const recentMovies = React.useMemo(() => {
     return [...movies]
-      .filter(m => !isSport(m.name))
+      .filter(m => !isSport(m.name) && !isExcluded(m.name))
       .sort((a, b) => Number(b.added || 0) - Number(a.added || 0))
       .slice(0, 20);
   }, [movies]);
@@ -217,7 +223,7 @@ export default function Home() {
   const topRatedMovies = React.useMemo(() => {
     return [...movies]
       // On filtre les films avec une note entre 7 et 9.5 pour éliminer les faux 10/10 (films obscurs)
-      .filter(m => !isSport(m.name) && Number(m.rating || 0) >= 7 && Number(m.rating || 0) <= 9.5)
+      .filter(m => !isSport(m.name) && !isExcluded(m.name) && Number(m.rating || 0) >= 7 && Number(m.rating || 0) <= 9.5)
       // On trie par date d'ajout pour avoir les bons films les plus récents
       .sort((a, b) => Number(b.added || 0) - Number(a.added || 0))
       .slice(0, 20);
@@ -225,8 +231,8 @@ export default function Home() {
 
   const recentSeries = React.useMemo(() => {
     // On essaie d'abord de prendre les séries avec une note pour éviter les événements sportifs
-    const ratedSeries = series.filter(s => !isSport(s.name) && Number(s.rating || 0) > 0);
-    const sourceArray = ratedSeries.length > 10 ? ratedSeries : series.filter(s => !isSport(s.name));
+    const ratedSeries = series.filter(s => !isSport(s.name) && !isExcluded(s.name) && Number(s.rating || 0) > 0);
+    const sourceArray = ratedSeries.length > 10 ? ratedSeries : series.filter(s => !isSport(s.name) && !isExcluded(s.name));
 
     return [...sourceArray]
       .sort((a, b) => Number(b.last_modified || b.added || 0) - Number(a.last_modified || a.added || 0))
@@ -292,6 +298,11 @@ export default function Home() {
           seriesCover: item.seriesCover || null,
           cover: item.cover || item.stream_icon || ''
         };
+        localStorage.setItem(historyKey, JSON.stringify(history));
+      } else if (forcedStartTime === 0) {
+        history[streamId as string].watched = false;
+        history[streamId as string].progress = 0;
+        history[streamId as string].currentTime = 0;
         localStorage.setItem(historyKey, JSON.stringify(history));
       }
     }
