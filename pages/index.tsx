@@ -254,6 +254,12 @@ export default function Home() {
       return;
     }
 
+    if (type === 'movie') {
+      const targetMovieId = item.stream_id || item.id;
+      router.push(`/movie/${targetMovieId}`);
+      return;
+    }
+
     const streamId = item.stream_id || item.id;
     const streamUrl = xtreamApi.getStreamUrl(streamId, type, item.container_extension || (type === 'live' ? 'ts' : 'mkv'));
 

@@ -37,10 +37,19 @@ export default function RatingModal({ item, onClose }: RatingModalProps) {
       }
     };
 
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+
     window.addEventListener('keyup', handleGlobalKeyUp);
+    window.addEventListener('keydown', handleGlobalKeyDown, { capture: true });
     return () => {
       clearTimeout(timer);
       window.removeEventListener('keyup', handleGlobalKeyUp);
+      window.removeEventListener('keydown', handleGlobalKeyDown, { capture: true });
     };
   }, [initialRating]);
 
@@ -62,6 +71,7 @@ export default function RatingModal({ item, onClose }: RatingModalProps) {
     <FocusContext.Provider value={focusKey}>
       <div 
         ref={ref}
+        role="dialog"
         onClick={(e) => e.stopPropagation()} 
         className="fixed inset-0 z-[99999] flex items-center justify-center p-6 backdrop-blur-md bg-black/60 animate-in fade-in duration-300"
       >

@@ -8,6 +8,8 @@ import { ResumeModal } from '../../components/ResumeModal';
 import RatingModal from '../../components/RatingModal';
 import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { useRatingStore } from '../../store/useRatingStore';
+import { ActorModal } from '../../components/ActorModal';
+import FavoriteModal from '../../components/FavoriteModal';
 
 export default function SeriesDetail() {
   const router = useRouter();
@@ -17,6 +19,7 @@ export default function SeriesDetail() {
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
   const [playbackHistory, setPlaybackHistory] = useState<any>({});
   const [showRating, setShowRating] = useState(false);
+  const [selectedActor, setSelectedActor] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && data) {
@@ -162,6 +165,14 @@ export default function SeriesDetail() {
 
   const episodes = selectedSeason ? data.episodes[selectedSeason] : [];
 
+  const parseCast = (castStr?: string) => {
+    if (!castStr) return [];
+    return castStr.split(',').map(s => s.trim()).filter(Boolean);
+  };
+
+  const actors = data.info ? parseCast(data.info.cast) : [];
+  const directors = data.info ? parseCast(data.info.director) : [];
+
 
   const handlePlayEpisode = (ep: any, forcedStartTime?: number) => {
     if (launchingVideo) return; 
@@ -174,7 +185,8 @@ export default function SeriesDetail() {
     
     if (history[ep.id] && forcedStartTime === undefined) {
       const savedTime = history[ep.id].currentTime;
-      if (savedTime > 10) {
+      const progress = history[ep.id].progress || 0;
+      if (progress > 1 && savedTime > 10) {
         setResumeModal({
             isOpen: true,
             ep,
@@ -294,14 +306,9 @@ export default function SeriesDetail() {
                     </p>
 
                     <div className="flex items-center space-x-4">
-                        <FocusableAction 
-                            focusKey="RATE_SERIES_BTN"
-                            onClick={() => setShowRating(true)}
-                        >
-                            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
-                            Noter la série
-                        </FocusableAction>
+                        <FavoriteDetailsButton item={{ ...data.info, stream_id: id, type: 'series' }} />
                     </div>
+
                 </div>
             </div>
         </div>
@@ -330,6 +337,7 @@ export default function SeriesDetail() {
                     <FocusableEpisodeCard 
                         key={ep.id}
                         ep={ep}
+                        index={index}
                         focusKey={`EPISODE_${ep.id}`}
                         history={playbackHistory[ep.id as string]}
                         onClick={handlePlayEpisode}
@@ -343,6 +351,23 @@ export default function SeriesDetail() {
                 </div>
             )}
         </div>
+
+        {/* Cast & Crew Section (Moved to bottom) */}
+        {(actors.length > 0 || directors.length > 0) && (
+            <div className="px-20 relative z-10 pb-32">
+                <div className="border-t border-white/10 pt-10">
+                    <h3 className="text-sm font-medium uppercase tracking-[0.4em] text-gray-500 mb-6">Casting & Équipe</h3>
+                    <div className="flex flex-wrap items-center gap-4">
+                        {directors.map((dir, idx) => (
+                        <ActorBadge key={`dir-${idx}`} name={dir} role="Réalisateur" onClick={() => setSelectedActor(dir)} />
+                        ))}
+                        {actors.map((actor, idx) => (
+                        <ActorBadge key={`act-${idx}`} name={actor} onClick={() => setSelectedActor(actor)} />
+                        ))}
+                    </div>
+                </div>
+            </div>
+        )}
 
         <ResumeModal 
             isOpen={resumeModal.isOpen}
@@ -376,6 +401,13 @@ export default function SeriesDetail() {
             setFocus('RATE_SERIES_BTN');
           }} 
         />
+      )}
+
+      {selectedActor && (
+          <ActorModal
+              actorName={selectedActor}
+              onClose={() => setSelectedActor(null)}
+          />
       )}
 
       <style jsx>{`
@@ -418,7 +450,13 @@ function FocusableBackButton({ onClick }: any) {
     <button 
       ref={ref}
       onClick={onClick} 
-      onMouseEnter={() => setFocus(focusKey)}
+      onMouseEnter={(e: any) => {
+        if ((window as any).lastMouseX !== e.clientX || (window as any).lastMouseY !== e.clientY) {
+          (window as any).lastMouseX = e.clientX;
+          (window as any).lastMouseY = e.clientY;
+          setFocus(focusKey);
+        }
+      }}
       className={`flex items-center space-x-6 text-white group/back transition-all duration-300 ${focused ? 'scale-110' : ''}`}
     >
       <div className={`backdrop-blur-xl p-5 rounded-full border shadow-2xl transition-all duration-700 
@@ -494,7 +532,7 @@ function FocusableSeasonButton({ s, isActive, onClick, focusKey: customFocusKey 
   );
 }
 
-function FocusableEpisodeCard({ ep, history, onClick, focusKey: customFocusKey }: any) {
+function FocusableEpisodeCard({ ep, history, onClick, focusKey: customFocusKey, index }: any) {
   const { ref, focused, focusKey } = useFocusable({
     focusKey: customFocusKey,
     onEnterPress: () => onClick(ep),
@@ -502,6 +540,13 @@ function FocusableEpisodeCard({ ep, history, onClick, focusKey: customFocusKey }
       if (direction === 'left') {
         if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
           setFocus('NAV_SERIES');
+          return false;
+        }
+      }
+      if (direction === 'up') {
+        const columns = window.innerWidth >= 1280 ? 3 : window.innerWidth >= 768 ? 2 : 1;
+        if (index < columns) {
+          setFocus(`SEASON_${ep.season || 1}`);
           return false;
         }
       }
@@ -514,7 +559,7 @@ function FocusableEpisodeCard({ ep, history, onClick, focusKey: customFocusKey }
     }
   });
 
-  const isWatched = history?.watched;
+  const isWatched = history?.watched || (history?.progress && history.progress >= 95);
   const progress = history?.progress || 0;
 
   return (
@@ -552,19 +597,64 @@ function FocusableEpisodeCard({ ep, history, onClick, focusKey: customFocusKey }
                 <span className="text-[7px] font-bold text-[#b5924d] uppercase tracking-widest opacity-60">VU</span>
                 <div className="w-1 h-1 bg-[#b5924d] rounded-full shadow-[0_0_5px_#b5924d]" />
             </div>
-        ) : progress > 0 ? (
+        ) : progress > 1 ? (
             <div className="absolute top-6 right-6 flex items-center space-x-2 animate-pulse">
                 <span className="text-[7px] font-bold text-white/30 uppercase tracking-widest">En Cours</span>
             </div>
         ) : null}
 
         {/* Discrete Progress Line */}
-        {progress > 0 && !isWatched && (
+        {progress > 1 && !isWatched && (
             <div className="absolute bottom-0 left-0 w-full h-[2px] bg-white/[0.03]">
                 <div className="h-full bg-[#b5924d] shadow-[0_0_10px_#b5924d]" style={{ width: `${progress}%` }} />
             </div>
         )}
     </div>
+  );
+}
+
+function FavoriteDetailsButton({ item }: { item: any }) {
+  const { isFavorite } = useDataStore();
+  const [showFavModal, setShowFavModal] = useState(false);
+  const { ref, focused } = useFocusable({
+    focusKey: 'RATE_SERIES_BTN',
+    onEnterPress: () => setShowFavModal(true),
+    onFocus: () => ref.current?.scrollIntoView({ behavior: 'auto', block: 'center' })
+  });
+
+  const itemId = item.stream_id || item.series_id || item.id;
+  const isFavorited = isFavorite(itemId);
+
+  return (
+    <>
+      <button
+        ref={ref}
+        onClick={() => setShowFavModal(true)}
+        onMouseEnter={(e: any) => {
+          if ((window as any).lastMouseX !== e.clientX || (window as any).lastMouseY !== e.clientY) {
+            (window as any).lastMouseX = e.clientX;
+            (window as any).lastMouseY = e.clientY;
+            setFocus('RATE_SERIES_BTN');
+          }
+        }}
+        className={`w-14 h-14 rounded-full flex items-center justify-center text-xl transition-all duration-300 border
+                   ${focused ? 'bg-white text-black border-white scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]' : 'border-white/20 text-white hover:bg-white/10'}`}
+        title="Ajouter aux favoris"
+      >
+        <svg className="w-5 h-5" fill={isFavorited ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+        </svg>
+      </button>
+      {showFavModal && (
+        <FavoriteModal
+          item={item}
+          onClose={() => {
+            setShowFavModal(false);
+            setFocus('RATE_SERIES_BTN');
+          }}
+        />
+      )}
+    </>
   );
 }
 
@@ -609,6 +699,37 @@ function FocusableAction({ children, onClick, focusKey: customFocusKey }: any) {
                  ${focused ? 'bg-[#b5924d] text-black border-[#b5924d] scale-110 shadow-[0_0_40px_rgba(181,146,77,0.5)]' : 'bg-white/5 text-white border-white/10 hover:bg-white/10'}`}
     >
       {children}
+    </button>
+  );
+}
+
+function ActorBadge({ name, role, onClick }: { name: string, role?: string, onClick: () => void }) {
+  const { ref, focused, focusKey } = useFocusable({
+    focusKey: `ACTOR_BADGE_${name.replace(/[^a-zA-Z0-9]/g, '_')}`,
+    onEnterPress: onClick,
+    onFocus: () => {
+      setTimeout(() => {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      }, 50);
+    }
+  });
+
+  return (
+    <button
+      ref={ref}
+      onClick={onClick}
+      onMouseEnter={(e: any) => {
+        if ((window as any).lastMouseX !== e.clientX || (window as any).lastMouseY !== e.clientY) {
+          (window as any).lastMouseX = e.clientX;
+          (window as any).lastMouseY = e.clientY;
+          setFocus(focusKey);
+        }
+      }}
+      className={`px-4 py-2 rounded-full border transition-all duration-300 text-sm flex flex-col items-center
+                 ${focused ? 'bg-white text-black border-white scale-105 shadow-[0_0_15px_rgba(255,255,255,0.3)]' : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10'}`}
+    >
+      <span className="font-medium">{name}</span>
+      {role && <span className="text-[9px] uppercase tracking-wider opacity-70 mt-0.5">{role}</span>}
     </button>
   );
 }

@@ -84,7 +84,11 @@ function NavButton({ icon, label, active = false, onClick, isFirst, isLast, cust
     onArrowPress: (direction) => {
       if (direction === 'left') return false;
       if (direction === 'right') {
-        setFocus('MAIN_CONTENT');
+        if (window.location.pathname.includes('/movie/')) {
+          setFocus('MOVIE_MAIN_CONTENT');
+        } else {
+          setFocus('MAIN_CONTENT');
+        }
         return false;
       }
       if (direction === 'up' && isFirst) return false;

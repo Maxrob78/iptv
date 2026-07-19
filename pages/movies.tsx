@@ -26,11 +26,6 @@ export default function Movies() {
     trackChildren: true
   });
   const [playbackHistory, setPlaybackHistory] = useState<any>({});
-  const [resumeModal, setResumeModal] = useState<{ isOpen: boolean, item: any, time: number }>({
-    isOpen: false,
-    item: null,
-    time: 0
-  });
   const [favModalItem, setFavModalItem] = useState<any>(null);
 
   useEffect(() => {
@@ -127,69 +122,9 @@ export default function Movies() {
       .slice(0, renderLimit);
   }, [movies, debouncedSearch, renderLimit]);
 
-  const handlePlayMovie = useCallback((vid: any, forcedStartTime?: number) => {
+  const handlePlayMovie = useCallback((vid: any) => {
     if (launchingVideo) return; // Anti-double clic
-    const streamUrl = xtreamApi.getStreamUrl(vid.stream_id, 'movie', vid.container_extension || 'mkv');
-
-    // Système de reprise de lecture (Resume)
-    const activeProfileId = useProfileStore.getState().activeProfile?.id;
-    const historyKey = activeProfileId ? `iptv_playback_history_${activeProfileId}` : 'iptv_playback_history';
-    const history = JSON.parse(localStorage.getItem(historyKey) || '{}');
-    let startTime = forcedStartTime ?? 0;
-
-    if (history[vid.stream_id] && forcedStartTime === undefined) {
-      const savedTime = history[vid.stream_id].currentTime;
-      if (savedTime > 10) {
-        setResumeModal({
-          isOpen: true,
-          item: vid,
-          time: savedTime
-        });
-        return;
-      }
-    }
-
-    if (history[vid.stream_id as string] && forcedStartTime === 0) {
-      history[vid.stream_id as string].watched = false;
-      history[vid.stream_id as string].progress = 0;
-      history[vid.stream_id as string].currentTime = 0;
-      localStorage.setItem(historyKey, JSON.stringify(history));
-      setPlaybackHistory(history);
-    }
-
-    setLaunchingVideo(vid.name);
-
-    // Initialiser dans l'historique si ce n'est pas déjà fait
-    if (!history[vid.stream_id as string]) {
-      history[vid.stream_id as string] = {
-        id: vid.stream_id,
-        currentTime: 0,
-        duration: 100,
-        progress: 1,
-        watched: false,
-        lastUpdated: Date.now(),
-        type: 'movie',
-        title: vid.name,
-        extension: vid.container_extension || 'mkv',
-        cover: vid.stream_icon || ''
-      };
-      localStorage.setItem(historyKey, JSON.stringify(history));
-      setPlaybackHistory(history);
-    }
-
-    if ((window as any).electronAPI && (window as any).electronAPI.openMPV) {
-      (window as any).electronAPI.openMPV({
-        streamUrl,
-        streamId: vid.stream_id,
-        title: vid.name,
-        type: 'movie',
-        startTime: startTime
-      });
-    } else {
-      router.push(`/player/${vid.stream_id}?type=movie&extension=${vid.container_extension}&title=${encodeURIComponent(vid.name)}&cover=${encodeURIComponent(vid.stream_icon || '')}&start=${startTime}`);
-    }
-    setTimeout(() => setLaunchingVideo(null), 3000);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    router.push(`/movie/${vid.stream_id || vid.id}`);
   }, [launchingVideo, router]);
 
   // Hook toujours appelé au même niveau (jamais dans un ternaire) :
@@ -268,27 +203,7 @@ export default function Movies() {
             )}
           </div>
 
-          <ResumeModal
-            isOpen={resumeModal.isOpen}
-            title={resumeModal.item?.name || ''}
-            time={resumeModal.time}
-            onClose={() => {
-              setResumeModal({ ...resumeModal, isOpen: false });
-              if (resumeModal.item) setTimeout(() => setFocus(`MOVIE_${resumeModal.item.stream_id}`), 100);
-            }}
-            onConfirm={() => {
-              const { item, time } = resumeModal;
-              setResumeModal({ ...resumeModal, isOpen: false });
-              setTimeout(() => setFocus(`MOVIE_${item.stream_id}`), 100);
-              handlePlayMovie(item, time);
-            }}
-            onStartOver={() => {
-              const { item } = resumeModal;
-              setResumeModal({ ...resumeModal, isOpen: false });
-              setTimeout(() => setFocus(`MOVIE_${item.stream_id}`), 100);
-              handlePlayMovie(item, 0);
-            }}
-          />
+
 
           {favModalItem && (
             <FavoriteModal

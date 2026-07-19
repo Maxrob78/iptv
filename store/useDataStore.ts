@@ -241,9 +241,10 @@ export const useDataStore = create<DataState>()(
 
       isFavorite: (id) => {
         const currentData = get().getProfileData();
-        if (currentData.favorites.find(f => (f.stream_id || f.series_id) === id)) return true;
+        const strId = String(id);
+        if (currentData.favorites.find(f => String(f.stream_id || f.series_id || f.id) === strId)) return true;
         return currentData.favoriteCategories.some(cat =>
-          cat.items.some(i => (i.stream_id || i.series_id || i.id) === id)
+          cat.items.some(i => String(i.stream_id || i.series_id || i.id) === strId)
         );
       },
 
@@ -329,7 +330,8 @@ export const useDataStore = create<DataState>()(
 
         const newCategories = currentData.favoriteCategories.map(cat => {
           if (cat.id === categoryId) {
-            const exists = cat.items.find(i => (i.stream_id || i.series_id || i.id) === id);
+            const strId = String(id);
+            const exists = cat.items.find(i => String(i.stream_id || i.series_id || i.id) === strId);
             if (!exists) return { ...cat, items: [...cat.items, { ...item, _addedAt: Date.now() }] };
           }
           return cat;
@@ -350,7 +352,8 @@ export const useDataStore = create<DataState>()(
         const currentData = get().getProfileData();
         const newCategories = currentData.favoriteCategories.map(cat => {
           if (cat.id === categoryId) {
-            return { ...cat, items: cat.items.filter(i => (i.stream_id || i.series_id || i.id) !== itemId) };
+            const strId = String(itemId);
+            return { ...cat, items: cat.items.filter(i => String(i.stream_id || i.series_id || i.id) !== strId) };
           }
           return cat;
         });

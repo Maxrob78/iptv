@@ -84,6 +84,16 @@ class XtreamAPI {
     const res = await fetch(`${this.getBaseUrl()}&action=get_series_info&series_id=${seriesId}`);
     return await res.json();
   }
+
+  async getVodInfo(vodId: number): Promise<any> {
+    const res = await fetch(`${this.getBaseUrl()}&action=get_vod_info&vod_id=${vodId}`);
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch (e: any) {
+      throw new Error(`Erreur JSON VOD Info (${res.status}). Reçu: ${text.substring(0, 150)}`);
+    }
+  }
 }
 
 export const xtreamApi = new XtreamAPI();

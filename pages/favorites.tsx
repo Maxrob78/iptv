@@ -72,11 +72,12 @@ export default function FavoritesPage() {
 
     if (item.isLocal) {
       if (item.type === 'series') router.push(`/series/local-${id}`);
-      else router.push(`/player/local-${id}?type=movie&title=${encodeURIComponent(item.name)}&localPath=${encodeURIComponent(item.episodes?.[0]?.path)}`);
+      else router.push(`/movie/local-${id}`);
       return;
     }
 
     if (type === 'series') { router.push(`/series/${id}`); return; }
+    if (type === 'movie') { router.push(`/movie/${id}`); return; }
 
     const activeProfileId = useProfileStore.getState().activeProfile?.id;
     const historyKey = activeProfileId ? `iptv_playback_history_${activeProfileId}` : 'iptv_playback_history';
