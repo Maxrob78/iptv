@@ -216,6 +216,39 @@ export default function MovieDetail() {
   const directors = parseCast(data.info.director);
   const historyData = playbackHistory[String(id)];
 
+  const getDisplayDuration = () => {
+    if (data.info.duration && typeof data.info.duration === 'string') {
+        const d = data.info.duration.trim().toLowerCase();
+        if (d.includes(':')) {
+            const parts = d.split(':');
+            if (parts.length === 3) {
+                const m = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+                if (m > 0) return `${m} min`;
+            }
+        }
+        if (d.includes('h')) {
+             const parts = d.split('h');
+             const h = parseInt(parts[0]) || 0;
+             const m = parseInt(parts[1]) || 0;
+             if (h > 0 || m > 0) return `${h * 60 + m} min`;
+        }
+        const parsed = parseInt(d);
+        if (!isNaN(parsed) && parsed > 0) {
+            if (parsed > 500) return `${Math.round(parsed / 60)} min`;
+            return `${parsed} min`;
+        }
+    }
+    
+    if (data.info.duration_secs > 0) {
+        let mins = Math.round(data.info.duration_secs / 60);
+        if (mins < 10 && data.info.duration_secs >= 20) {
+            mins = data.info.duration_secs;
+        }
+        if (mins > 0) return `${mins} min`;
+    }
+    return null;
+  };
+
   return (
     <div className="flex-1 flex bg-[#050505] min-h-screen text-white selection:bg-[#b5924d]/30 font-['Inter']">
       <Sidebar />
@@ -287,8 +320,8 @@ export default function MovieDetail() {
                   {data.info.releaseDate && (
                     <span className="text-gray-400 text-sm font-medium">{data.info.releaseDate}</span>
                   )}
-                  {data.info.duration_secs > 0 && (
-                    <span className="text-gray-400 text-sm font-medium">{Math.round(data.info.duration_secs / 60)} min</span>
+                  {getDisplayDuration() && (
+                    <span className="text-gray-400 text-sm font-medium">{getDisplayDuration()}</span>
                   )}
                   {data.info.genre && (
                     <span className="text-gray-500 text-sm">{data.info.genre}</span>
@@ -446,7 +479,7 @@ function FavoriteDetailsButton({ item }: { item: any }) {
   const { ref, focused } = useFocusable({
     focusKey: 'MOVIE_FAVORITE_BTN',
     onEnterPress: () => setShowFavModal(true),
-    onFocus: () => ref.current?.scrollIntoView({ behavior: 'auto', block: 'center' })
+    onFocus: () => setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50)
   });
 
   const itemId = item.stream_id || item.series_id || item.id;

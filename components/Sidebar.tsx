@@ -49,11 +49,13 @@ export function Sidebar() {
             icon="🔄"
             label="Actualiser"
             onClick={() => {
+              (window as any).hasJustRefreshed = true;
               startRefresh();
               if (router.pathname !== '/') {
                 router.push('/');
               }
               // Force le focus à rester sur le bouton après le rechargement et la navigation
+              setTimeout(() => setFocus('NAV_REFRESH'), 50);
               setTimeout(() => setFocus('NAV_REFRESH'), 250);
               setTimeout(() => setFocus('NAV_REFRESH'), 500); // Double sécurité
             }}
@@ -84,8 +86,16 @@ function NavButton({ icon, label, active = false, onClick, isFirst, isLast, cust
     onArrowPress: (direction) => {
       if (direction === 'left') return false;
       if (direction === 'right') {
-        if (window.location.pathname.includes('/movie/')) {
+        const path = window.location.pathname;
+        if (path.includes('/movie/')) {
           setFocus('MOVIE_MAIN_CONTENT');
+        } else if (path === '/' || path === '') {
+          if ((window as any).hasJustRefreshed) {
+            setFocus('HERO_RESUME');
+            (window as any).hasJustRefreshed = false;
+          } else {
+            setFocus('MAIN_CONTENT');
+          }
         } else {
           setFocus('MAIN_CONTENT');
         }

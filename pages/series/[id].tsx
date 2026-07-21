@@ -621,7 +621,7 @@ function FavoriteDetailsButton({ item }: { item: any }) {
   const { ref, focused } = useFocusable({
     focusKey: 'RATE_SERIES_BTN',
     onEnterPress: () => setShowFavModal(true),
-    onFocus: () => ref.current?.scrollIntoView({ behavior: 'auto', block: 'center' })
+    onFocus: () => setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50)
   });
 
   const itemId = item.stream_id || item.series_id || item.id;
