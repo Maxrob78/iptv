@@ -10,6 +10,8 @@ import FavoriteModal from '../components/FavoriteModal';
 import { ResumeModal } from '../components/ResumeModal';
 import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 
+let lastFocusedMovieKey: string | null = null;
+
 export default function Movies() {
   const router = useRouter();
   const { movies, setMovies, checkAndClearCache, hydrateHeavyData } = useDataStore();
@@ -80,7 +82,11 @@ export default function Movies() {
   useEffect(() => {
     checkAndClearCache();
     setTimeout(() => {
-      setFocus('MOVIE_SEARCH');
+      if (lastFocusedMovieKey) {
+        setFocus(lastFocusedMovieKey);
+      } else {
+        setFocus('MOVIE_SEARCH');
+      }
     }, 200);
 
     const fetchData = async () => {
@@ -237,6 +243,7 @@ function FocusableInput({ value, onChange, placeholder, containerRef }: any) {
       return true;
     },
     onFocus: () => {
+      lastFocusedMovieKey = focusKey;
       if (!(window as any).isMouseFocus) {
         setTimeout(() => {
           // 1. Remonter le conteneur spécifique
@@ -305,6 +312,7 @@ function FocusableMovie({ vid, idx, onClick, onLongPress }: any) {
       return true;
     },
     onFocus: () => {
+      lastFocusedMovieKey = focusKey;
       if (!(window as any).isMouseFocus) {
         ref.current?.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
       }

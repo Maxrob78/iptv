@@ -221,6 +221,13 @@ function createWindow() {
     }, 1500);
   });
 
+  // Intercepter l'ouverture de nouveaux onglets (ex: Bande Annonce Youtube) 
+  // pour les ouvrir dans le navigateur par défaut de l'utilisateur (Chrome, Edge...)
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    require('electron').shell.openExternal(url);
+    return { action: 'deny' };
+  });
+
   // Gestion des contrôles personnalisés (titlebar)
   ipcMain.on('window-min', () => mainWindow.minimize());
   ipcMain.on('window-max', () => {

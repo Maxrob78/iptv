@@ -8,6 +8,8 @@ import { FavoriteButton } from '../components/FavoriteButton';
 import FavoriteModal from '../components/FavoriteModal';
 import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 
+let lastFocusedSeriesKey: string | null = null;
+
 export default function Series() {
   const router = useRouter();
   const { series, setSeries, checkAndClearCache } = useDataStore();
@@ -59,7 +61,11 @@ export default function Series() {
   useEffect(() => {
     checkAndClearCache();
     setTimeout(() => {
-      setFocus('SERIES_SEARCH');
+      if (lastFocusedSeriesKey) {
+        setFocus(lastFocusedSeriesKey);
+      } else {
+        setFocus('SERIES_SEARCH');
+      }
     }, 200);
     const fetchData = async () => {
       if (series.length > 0) return;
@@ -188,6 +194,7 @@ function FocusableInput({ value, onChange, placeholder, containerRef }: any) {
     },
     onArrowPress: (direction) => direction !== 'up',
     onFocus: () => {
+      lastFocusedSeriesKey = focusKey;
       if (!(window as any).isMouseFocus) {
         setTimeout(() => {
           // 1. Remonter le conteneur spécifique
@@ -242,6 +249,7 @@ function FocusableSeriesCard({ s, idx, onClick, onLongPress }: any) {
   const { ref, focused, focusKey } = useFocusable({
     focusKey: `SERIES_${s.series_id}`,
     onFocus: () => {
+      lastFocusedSeriesKey = focusKey;
       if (!(window as any).isMouseFocus) {
         ref.current?.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
       }

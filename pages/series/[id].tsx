@@ -10,6 +10,7 @@ import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spat
 import { useRatingStore } from '../../store/useRatingStore';
 import { ActorModal } from '../../components/ActorModal';
 import FavoriteModal from '../../components/FavoriteModal';
+import { fetchOmdbRating } from '../../utils/omdb';
 
 export default function SeriesDetail() {
   const router = useRouter();
@@ -20,6 +21,7 @@ export default function SeriesDetail() {
   const [playbackHistory, setPlaybackHistory] = useState<any>({});
   const [showRating, setShowRating] = useState(false);
   const [selectedActor, setSelectedActor] = useState<string | null>(null);
+  const [omdbRating, setOmdbRating] = useState<string | null>(null);
 
   const focusSet = useRef(false);
   useEffect(() => {
@@ -96,6 +98,7 @@ export default function SeriesDetail() {
 
   useEffect(() => {
     if (!id) return;
+    focusSet.current = false;
 
     if (id.toString().startsWith('local-')) {
       const realId = id.toString().replace('local-', '');
@@ -155,6 +158,21 @@ export default function SeriesDetail() {
     };
     fetchData();
   }, [id, localLibrary]);
+
+  useEffect(() => {
+    if (data && data.info) {
+      const getRating = async () => {
+        const rating = await fetchOmdbRating(
+            data.info.name, 
+            data.info.releaseDate || data.series_data?.year, 
+            'series',
+            data.info.imdb_id || data.series_data?.imdb_id
+        );
+        if (rating) setOmdbRating(rating);
+      };
+      getRating();
+    }
+  }, [data]);
 
   if (loading || !data || !data.info) return (
     <div className="flex-1 flex bg-[#050505] text-white">
@@ -275,8 +293,13 @@ export default function SeriesDetail() {
             </div>
             
             <div className="flex flex-col lg:flex-row items-start lg:space-x-20">
-                <div className="w-64 aspect-[3/4.5] rounded-sm overflow-hidden ring-1 ring-white/10 shadow-2xl mb-12 lg:mb-0 animate-in zoom-in-95 duration-1000">
-                    <img src={data.info.cover} className="w-full h-full object-cover" alt="" />
+                <div className="flex flex-col items-center mb-12 lg:mb-0">
+                    <div className="w-64 aspect-[3/4.5] rounded-sm overflow-hidden ring-1 ring-white/10 shadow-2xl mb-8 animate-in zoom-in-95 duration-1000">
+                        <img src={data.info.cover} className="w-full h-full object-cover" alt="" />
+                    </div>
+                    <div className="flex justify-center w-full animate-in zoom-in-95 duration-1000">
+                        <FavoriteDetailsButton item={{ ...data.info, stream_id: id, type: 'series' }} />
+                    </div>
                 </div>
                 
                 <div className="flex-1 max-w-4xl animate-in fade-in slide-in-from-right-10 duration-1000">
@@ -286,30 +309,38 @@ export default function SeriesDetail() {
                         ))}
                     </h1>
                     
-                    <div className="flex items-center space-x-8 mb-12 text-[10px] font-bold tracking-[0.3em] text-[#b5924d]">
-                        <div className="flex items-center space-x-2">
-                             <span className="text-white opacity-40">SCORE</span>
-                             <span>{data.info.rating || '8.5'}/10</span>
-                             {userRating && (
-                               <>
-                                 <span className="text-white opacity-40 ml-4">MA NOTE</span>
-                                 <span className="text-[#b5924d]">{userRating}/10</span>
-                               </>
-                             )}
-                        </div>
-                        <span className="w-1.5 h-1.5 bg-white/10 rounded-full" />
-                        <span>{data.info.releaseDate || '2024'}</span>
-                        <span className="w-1.5 h-1.5 bg-white/10 rounded-full" />
-                        <span className="text-white opacity-40 uppercase">{data.info.genre || 'MASTERPIECE'}</span>
+                    <div className="flex flex-wrap items-center gap-4 mb-12">
+                        {omdbRating ? (
+                            <div className="flex items-center space-x-2 bg-[#f5c518]/20 px-3 py-1 rounded-sm border border-[#f5c518]/30">
+                                <span className="bg-[#f5c518] text-black px-1 py-0.5 rounded-[2px] font-black tracking-normal text-[8px] shadow-sm">IMDb</span>
+                                <span className="text-[#f5c518] font-bold text-sm">{omdbRating}</span>
+                            </div>
+                        ) : data.info.rating ? (
+                            <div className="flex items-center space-x-2 bg-[#b5924d]/20 px-3 py-1 rounded-sm border border-[#b5924d]/30">
+                                <span className="text-[#b5924d]">★</span>
+                                <span className="text-[#b5924d] font-bold text-sm">{data.info.rating}</span>
+                            </div>
+                        ) : null}
+                        
+                        {userRating && (
+                            <div className="flex items-center space-x-2 bg-blue-500/20 px-3 py-1 rounded-sm border border-blue-500/30 cursor-pointer hover:bg-blue-500/30 transition" onClick={() => setShowRating(true)}>
+                                <span className="text-blue-400">★</span>
+                                <span className="text-blue-400 font-bold text-sm">Vous : {userRating}/10</span>
+                            </div>
+                        )}
+                        
+                        {data.info.releaseDate && (
+                            <span className="text-gray-400 text-sm font-medium">{data.info.releaseDate}</span>
+                        )}
+                        
+                        {data.info.genre && (
+                            <span className="text-gray-500 text-sm">{data.info.genre}</span>
+                        )}
                     </div>
 
                     <p className="text-gray-500 text-lg font-light leading-relaxed max-w-2xl mb-12">
                         {data.info.plot || "Aucun synopsis disponible pour ce registre."}
                     </p>
-
-                    <div className="flex items-center space-x-4">
-                        <FavoriteDetailsButton item={{ ...data.info, stream_id: id, type: 'series' }} />
-                    </div>
 
                 </div>
             </div>
@@ -427,6 +458,7 @@ function FocusableBackButton({ onClick }: any) {
     onEnterPress: onClick,
     onArrowPress: (direction) => {
       if (direction === 'up') return false;
+      if (direction === 'right') return false;
       if (direction === 'down') {
         setFocus('RATE_SERIES_BTN');
         return false;
@@ -621,7 +653,14 @@ function FavoriteDetailsButton({ item }: { item: any }) {
   const { ref, focused } = useFocusable({
     focusKey: 'RATE_SERIES_BTN',
     onEnterPress: () => setShowFavModal(true),
-    onFocus: () => setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50)
+    onFocus: () => setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50),
+    onArrowPress: (direction) => {
+      if (direction === 'left') {
+        setFocus('NAV_SERIES');
+        return false;
+      }
+      return true;
+    }
   });
 
   const itemId = item.stream_id || item.series_id || item.id;

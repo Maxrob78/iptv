@@ -12,6 +12,7 @@ import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spat
 let lastMouseX = -1;
 let lastMouseY = -1;
 let isMouseMode = false;
+let lastFocusedFavKey: string | null = null;
 
 if (typeof window !== 'undefined') {
   window.addEventListener('mousemove', (e) => {
@@ -57,7 +58,11 @@ export default function FavoritesPage() {
   useEffect(() => {
     if (mounted) {
       setTimeout(() => {
-        setFocus('FIRST_FAV_TITLE');
+        if (lastFocusedFavKey) {
+          setFocus(lastFocusedFavKey);
+        } else {
+          setFocus('FIRST_FAV_TITLE');
+        }
       }, 400);
     }
   }, [mounted]);
@@ -372,6 +377,7 @@ function FocusableCategoryTitle({ cat, onRename, blockUp }: any) {
       return true;
     },
     onFocus: () => {
+      lastFocusedFavKey = focusKey;
       if (blockUp) {
         // Le titre de la 1ère catégorie est focus : on remonte tout en haut pour voir "MES COLLECTIONS."
         setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50);
@@ -542,6 +548,7 @@ function FocusableCardImage({ id, item, isChannel, onClick, onFocus, onBlur, cus
     },
     // Only setState — never call setFocus here to avoid loops
     onFocus: () => {
+      lastFocusedFavKey = focusKey;
       onFocus();
       if (!(window as any).isMouseFocus && ref.current) {
         ref.current.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });

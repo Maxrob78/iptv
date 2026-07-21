@@ -10,6 +10,7 @@ import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spat
 import { useRatingStore } from '../../store/useRatingStore';
 import { ActorModal } from '../../components/ActorModal';
 import FavoriteModal from '../../components/FavoriteModal';
+import { fetchOmdbRating } from '../../utils/omdb';
 
 export default function MovieDetail() {
   const router = useRouter();
@@ -19,6 +20,7 @@ export default function MovieDetail() {
   const [playbackHistory, setPlaybackHistory] = useState<any>({});
   const [showRating, setShowRating] = useState(false);
   const [selectedActor, setSelectedActor] = useState<string | null>(null);
+  const [omdbRating, setOmdbRating] = useState<string | null>(null);
 
   const { getProfileData } = useDataStore();
   const { localLibrary } = getProfileData();
@@ -95,6 +97,7 @@ export default function MovieDetail() {
 
   useEffect(() => {
     if (!id) return;
+    focusSet.current = false;
 
     if (id.toString().startsWith('local-')) {
       const realId = id.toString().replace('local-', '');
@@ -131,6 +134,21 @@ export default function MovieDetail() {
     fetchData();
   }, [id, localLibrary]);
 
+  useEffect(() => {
+    if (data && data.info) {
+      const getRating = async () => {
+        const rating = await fetchOmdbRating(
+            data.info.name, 
+            data.info.releaseDate || data.movie_data?.year, 
+            'movie',
+            data.info.imdb_id || data.movie_data?.imdb_id
+        );
+        if (rating) setOmdbRating(rating);
+      };
+      getRating();
+    }
+  }, [data]);
+
   if (loading || !data || !data.info) return (
     <div className="flex-1 flex bg-[#050505] text-white">
       <Sidebar />
@@ -143,7 +161,7 @@ export default function MovieDetail() {
   const handlePlayMovie = (forcedStartTime?: number) => {
     if (launchingVideo) return; 
     
-    const movieData = data.movie_data || data.info; // Support local structure
+    const movieData = data.movie_data || data.info; 
     const streamUrl = xtreamApi.getStreamUrl(movieData.stream_id || id, 'movie', movieData.container_extension || 'mkv');
     
     const activeProfileId = useProfileStore.getState().activeProfile?.id;
@@ -255,7 +273,6 @@ export default function MovieDetail() {
       <FocusContext.Provider value={focusKey}>
         <main id="main-scroll" ref={ref} className="ml-20 lg:ml-72 flex-1 relative overflow-y-auto no-scrollbar pb-32">
 
-          {/* Notifications */}
           {launchingVideo && (
             <div className="fixed bottom-12 right-12 z-[100] animate-in slide-in-from-right-10 duration-500">
               <div className="bg-[#b5924d] text-black px-8 py-4 rounded-sm shadow-2xl flex items-center space-x-4">
@@ -265,7 +282,6 @@ export default function MovieDetail() {
             </div>
           )}
 
-          {/* Background Flouté */}
           <div className="fixed inset-0 z-0 w-full h-[70vh]">
             <img 
               src={data.info.cover || data.info.movie_image} 
@@ -283,7 +299,6 @@ export default function MovieDetail() {
 
           <div className="relative z-10 px-12 pt-32 max-w-[95%] animate-in fade-in slide-in-from-bottom-10 duration-1000">
             <div className="flex flex-col md:flex-row gap-16">
-              {/* Poster */}
               <div className="w-72 flex-shrink-0">
                 <div className="aspect-[3/4.5] rounded-xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10 relative">
                   <img 
@@ -302,15 +317,19 @@ export default function MovieDetail() {
                 </div>
               </div>
 
-              {/* Infos */}
               <div className="flex-1 pt-4">
                 <div className="flex items-center space-x-4 mb-6">
-                  {data.info.rating && (
+                  {omdbRating ? (
+                    <div className="flex items-center space-x-2 bg-[#f5c518]/20 px-3 py-1 rounded-sm border border-[#f5c518]/30">
+                      <span className="bg-[#f5c518] text-black px-1 py-0.5 rounded-[2px] font-black tracking-normal text-[8px] shadow-sm">IMDb</span>
+                      <span className="text-[#f5c518] font-bold text-sm">{omdbRating}</span>
+                    </div>
+                  ) : data.info.rating ? (
                     <div className="flex items-center space-x-2 bg-[#b5924d]/20 px-3 py-1 rounded-sm border border-[#b5924d]/30">
                       <span className="text-[#b5924d]">★</span>
                       <span className="text-[#b5924d] font-bold text-sm">{data.info.rating}</span>
                     </div>
-                  )}
+                  ) : null}
                   {userRating && (
                     <div className="flex items-center space-x-2 bg-blue-500/20 px-3 py-1 rounded-sm border border-blue-500/30 cursor-pointer hover:bg-blue-500/30 transition" onClick={() => setShowRating(true)}>
                         <span className="text-blue-400">★</span>
@@ -361,7 +380,14 @@ export default function MovieDetail() {
                     <TrailerButton videoId={data.info.youtube_trailer} />
                   )}
 
-                  <FavoriteDetailsButton item={data.movie_data || { ...data.info, stream_id: id }} />
+                  <FavoriteDetailsButton item={{ 
+                    ...(data.movie_data || {}), 
+                    ...data.info, 
+                    stream_id: id, 
+                    name: data.info?.name || data.movie_data?.name,
+                    cover: data.info?.cover || data.info?.movie_image || (data.movie_data && data.movie_data.stream_icon),
+                    stream_icon: data.info?.cover || data.info?.movie_image || (data.movie_data && data.movie_data.stream_icon)
+                  }} />
                 </div>
 
                 {/* Cast & Crew Section */}
@@ -402,7 +428,14 @@ export default function MovieDetail() {
 
           {showRating && (
               <RatingModal
-                  item={data.movie_data || { ...data.info, stream_id: id }}
+                  item={{ 
+                    ...(data.movie_data || {}), 
+                    ...data.info, 
+                    stream_id: id, 
+                    name: data.info?.name || data.movie_data?.name,
+                    cover: data.info?.cover || data.info?.movie_image || (data.movie_data && data.movie_data.stream_icon),
+                    stream_icon: data.info?.cover || data.info?.movie_image || (data.movie_data && data.movie_data.stream_icon)
+                  }}
                   onClose={() => setShowRating(false)}
               />
           )}
@@ -568,6 +601,7 @@ function FocusableBackButton({ onClick }: { onClick: () => void }) {
         setFocus('SIDEBAR');
         return false;
       }
+      if (direction === 'right') return false;
       if (direction === 'up') return false;
       return true;
     }
