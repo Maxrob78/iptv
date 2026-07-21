@@ -232,7 +232,7 @@ function FocusableCategoryItem({ cat, onClick, customFocusKey, isLast, showRatin
                 <span className={`text-[10px] font-bold tracking-wider ${focused ? 'text-black/60' : 'text-gray-500'}`}>SECTION</span>
             </div>
         </div>
-        <div className={`${focused ? 'bg-black/10 text-black' : 'bg-white/5 text-white/40'} px-4 py-2 rounded-full`}>
+        <div className={`${focused ? 'bg-black/10 text-black' : 'bg-white/5 text-white/40'} px-4 py-2 rounded-full shrink-0 whitespace-nowrap`}>
             <span className="text-[10px] font-black">{cat.items.length} contenus</span>
         </div>
     </button>

@@ -58,11 +58,7 @@ export default function FavoritesPage() {
   useEffect(() => {
     if (mounted) {
       setTimeout(() => {
-        if (lastFocusedFavKey) {
-          setFocus(lastFocusedFavKey);
-        } else {
-          setFocus('FIRST_FAV_TITLE');
-        }
+        setFocus('FIRST_FAV_TITLE');
       }, 400);
     }
   }, [mounted]);
@@ -711,7 +707,7 @@ function SortDropdown({ catId, currentSort, setSortOrder, blockUp }: any) {
 function SortOption({ opt, currentSort, onSelect, catId, index, totalOptions, closeMenu, blockUp, cat }: any) {
   const isActive = currentSort === opt.value || (!currentSort && opt.value === 'default');
   const { ref, focused, focusKey } = useFocusable({
-    focusKey: blockUp ? 'FIRST_FAV_TITLE' : `CAT_TITLE_${cat.id}`,
+    focusKey: `SORT_OPT_${catId}_${index}`,
     onEnterPress: onSelect,
     onArrowPress: (direction) => {
       if (direction === 'left' || direction === 'right') {
