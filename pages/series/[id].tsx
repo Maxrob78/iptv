@@ -174,6 +174,30 @@ export default function SeriesDetail() {
     }
   }, [data]);
 
+  useEffect(() => {
+    if (!loading && data && data.episodes) {
+      const totalEpisodesCount = Object.values(data.episodes).reduce((acc: number, season: any) => acc + season.length, 0);
+      const activeProfileId = useProfileStore.getState().activeProfile?.id;
+      const historyKey = activeProfileId ? `iptv_playback_history_${activeProfileId}` : 'iptv_playback_history';
+      const history = JSON.parse(localStorage.getItem(historyKey) || '{}');
+      let updated = false;
+
+      Object.values(history).forEach((item: any) => {
+        if (item.type === 'series' && String(item.seriesId) === String(id)) {
+          if (item.seriesTotalEpisodes !== totalEpisodesCount) {
+            item.seriesTotalEpisodes = totalEpisodesCount;
+            updated = true;
+          }
+        }
+      });
+
+      if (updated) {
+        localStorage.setItem(historyKey, JSON.stringify(history));
+        setPlaybackHistory(history);
+      }
+    }
+  }, [loading, data, id]);
+
   if (loading || !data || !data.info) return (
     <div className="flex-1 flex bg-[#050505] text-white">
       <Sidebar />
@@ -224,6 +248,8 @@ export default function SeriesDetail() {
       setPlaybackHistory(history);
     }
 
+    const totalEpisodesCount = Object.values(data.episodes).reduce((acc: number, season: any) => acc + season.length, 0);
+
     setLaunchingVideo(ep.title);
     
     if (!history[ep.id as string]) {
@@ -242,9 +268,11 @@ export default function SeriesDetail() {
         seriesCover: data.info.cover,
         cover: data.info.cover
       };
-      localStorage.setItem(historyKey, JSON.stringify(history));
-      setPlaybackHistory(history);
     }
+
+    history[ep.id as string].seriesTotalEpisodes = totalEpisodesCount;
+    localStorage.setItem(historyKey, JSON.stringify(history));
+    setPlaybackHistory(history);
 
     if ((window as any).electronAPI && (window as any).electronAPI.openMPV) {
       (window as any).electronAPI.openMPV({
@@ -446,7 +474,7 @@ export default function SeriesDetail() {
       <style jsx>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .mask-fade-right { mask-image: linear-gradient(to right, black 80%, transparent 100%); }
+        .mask-fade-right { mask-image: linear-gradient(to right, black 95%, transparent 100%); }
       `}</style>
     </div>
   );

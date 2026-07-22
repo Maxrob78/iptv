@@ -123,7 +123,9 @@ export default function AppWrapper({ Component, pageProps }: any) {
 
         // Ne pas retourner si on est à l'accueil
         const path = window.location.pathname;
-        if (path !== '/' && path !== '/profiles' && path !== '/login') {
+        if (!path.endsWith('/') && !path.endsWith('index.html') && 
+            !path.endsWith('/profiles') && !path.endsWith('profiles.html') && 
+            !path.endsWith('/login') && !path.endsWith('login.html')) {
           router.back();
         }
       }

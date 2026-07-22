@@ -65,11 +65,15 @@ export default function Home() {
             });
           } else {
             const existing = grouped.get(sId);
-            existing.episodes.push(id);
+            if (!existing.episodes.includes(id)) {
+              existing.episodes.push(id);
+            }
             if (item.lastUpdated > existing.lastUpdated) {
               existing.lastUpdated = item.lastUpdated;
               existing.progress = item.progress;
-              // On peut aussi garder l'id du dernier épisode regardé si besoin
+            }
+            if (item.seriesTotalEpisodes) {
+              existing.seriesTotalEpisodes = item.seriesTotalEpisodes;
             }
           }
         } else {
@@ -80,7 +84,17 @@ export default function Home() {
         }
       });
 
-      return Array.from(grouped.values()).sort((a: any, b: any) => b.lastUpdated - a.lastUpdated);
+      return Array.from(grouped.values())
+        .filter((item: any) => {
+          if (item.type === 'series' && item.seriesTotalEpisodes) {
+            if (item.episodes.length >= item.seriesTotalEpisodes) {
+              const allWatched = item.episodes.every((epId: string) => historyObj[epId].watched || historyObj[epId].progress > 90);
+              if (allWatched) return false;
+            }
+          }
+          return true;
+        })
+        .sort((a: any, b: any) => b.lastUpdated - a.lastUpdated);
     };
 
     const activeProfileId = useProfileStore.getState().activeProfile?.id;
