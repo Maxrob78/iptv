@@ -1,4 +1,4 @@
-const OMDB_API_KEY = '57d5d43c';
+const OMDB_API_KEY: string = '57d5d43c';
 const OMDB_API_URL = 'http://www.omdbapi.com/';
 
 export async function fetchOmdbRating(title: string, year?: string, type?: 'movie' | 'series', imdbId?: string): Promise<string | null> {

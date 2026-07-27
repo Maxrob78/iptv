@@ -10,7 +10,7 @@ export function ActorModal({ actorName, onClose }: { actorName: string, onClose:
   const [movies, setMovies] = useState<any[]>([]);
   const router = useRouter();
 
-  const { ref, focusKey, setFocus: setInnerFocus } = useFocusable({
+  const { ref, focusKey } = useFocusable({
     focusKey: 'ACTOR_MODAL',
     isFocusBoundary: true,
     autoRestoreFocus: true,
