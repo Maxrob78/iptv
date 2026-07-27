@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useProfileStore, Profile } from '../store/useProfileStore';
 import { useDataStore } from '../store/useDataStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 
 // Avatars locaux + backup Dicebear
@@ -30,6 +31,24 @@ export default function ProfilesPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState(DICEBEAR_AVATARS[0]);
+
+  // Auth Change States
+  const { serverUrl, username, password, login } = useAuthStore();
+  const [isChangingAuth, setIsChangingAuth] = useState(false);
+  const [newUrl, setNewUrl] = useState('');
+  const [newUser, setNewUser] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+
+  useEffect(() => {
+    if (isChangingAuth) {
+      setNewUrl(serverUrl);
+      setNewUser(username);
+      setNewPass(password);
+      setAuthError('');
+    }
+  }, [isChangingAuth, serverUrl, username, password]);
 
   useEffect(() => {
     // Chargement dynamique des avatars par catégories via Electron (compatible Prod)
@@ -91,6 +110,16 @@ export default function ProfilesPage() {
         setIsAdding(false);
         setEditingProfileId(null);
         setNewName('');
+      } else if ((e.key === 'Escape' || e.key === 'Backspace') && isChangingAuth) {
+        // Quitte le mode auth
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+          if (e.key === 'Backspace') return;
+          if (e.key === 'Escape') (active as HTMLElement).blur();
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        setIsChangingAuth(false);
       } else if ((e.key === 'Escape' || e.key === 'Backspace') && !isAdding && isManaging) {
          // Quitte le mode gestion
          e.preventDefault();
@@ -104,7 +133,7 @@ export default function ProfilesPage() {
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [isAdding, isManaging]);
+  }, [isAdding, isManaging, isChangingAuth]);
 
   useEffect(() => {
     // Si aucun profil n'existe, on force l'ajout du premier
@@ -174,13 +203,26 @@ export default function ProfilesPage() {
     }
   };
 
+  const handleSaveAuth = async (e?: React.FormEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
+    setAuthLoading(true);
+    setAuthError('');
+    const success = await login(newUrl, newUser, newPass);
+    if (success) {
+      setIsChangingAuth(false);
+    } else {
+      setAuthError('Identifiants incorrects ou serveur injoignable.');
+    }
+    setAuthLoading(false);
+  };
+
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center font-['Inter']">
       <FocusContext.Provider value={focusKey}>
         <main ref={ref} className="w-full max-w-6xl px-10">
 
-          {!isAdding ? (
-            <div className="animate-in fade-in zoom-in-95 duration-300">
+          {!isAdding && !isChangingAuth ? (
+            <div className="w-full">
               <h1 className="text-5xl font-extralight tracking-tight text-center mb-20 opacity-90">
                 {isManaging ? 'Gérer les profils' : 'Qui regarde ?'}
               </h1>
@@ -201,13 +243,77 @@ export default function ProfilesPage() {
                 )}
               </div>
 
-              <div className="flex justify-center">
+              <div className="flex justify-center space-x-6">
                 <FocusableButton
+                  focusKey="BTN_GERER_PROFILS"
                   label={isManaging ? 'Terminer' : 'Gérer les profils'}
                   onClick={() => setIsManaging(!isManaging)}
                 />
+                {!isManaging && (
+                  <FocusableButton
+                    label="⚙️ Changer d'identifiants"
+                    onClick={() => setIsChangingAuth(true)}
+                  />
+                )}
               </div>
 
+            </div>
+          ) : isChangingAuth ? (
+            <div className="max-w-2xl mx-auto w-full bg-[#111] p-16 rounded-2xl border border-white/5 shadow-2xl">
+              <h1 className="text-4xl font-black mb-8 text-white tracking-tighter text-center">Modifier Identifiants</h1>
+              
+              {authError && <div className="bg-orange-500/20 text-orange-400 border border-orange-500/30 p-4 rounded-xl mb-6 text-sm italic">{authError}</div>}
+
+              <form onSubmit={handleSaveAuth} className="space-y-6">
+                <div className="space-y-2">
+                   <label className="text-[10px] uppercase font-black text-gray-500 tracking-widest pl-1">Serveur Xtream</label>
+                   <FocusableInput 
+                     focusKey="AUTH_URL_INPUT"
+                     value={newUrl}
+                     onChange={setNewUrl}
+                     placeholder="http://..."
+                   />
+                </div>
+                <div className="space-y-2">
+                   <label className="text-[10px] uppercase font-black text-gray-500 tracking-widest pl-1">Utilisateur</label>
+                   <FocusableInput 
+                     focusKey="AUTH_USER_INPUT"
+                     value={newUser}
+                     onChange={setNewUser}
+                     placeholder="Identifiant"
+                   />
+                </div>
+                <div className="space-y-2">
+                   <label className="text-[10px] uppercase font-black text-gray-500 tracking-widest pl-1">Mot de passe</label>
+                   <div className="relative">
+                     <FocusableInput 
+                       focusKey="AUTH_PASS_INPUT"
+                       type="password"
+                       value={newPass}
+                       onChange={setNewPass}
+                       placeholder="Mot de passe"
+                     />
+                   </div>
+                </div>
+
+                <div className="flex space-x-4 mt-8">
+                  <div className="w-1/3">
+                    <FocusableButton 
+                      focusKey="AUTH_CANCEL_BTN"
+                      label="Annuler"
+                      onClick={() => setIsChangingAuth(false)}
+                    />
+                  </div>
+                  <div className="w-2/3">
+                    <FocusableButton 
+                      focusKey="AUTH_SAVE_BTN"
+                      primary
+                      label={authLoading ? 'Vérification...' : "Enregistrer"}
+                      onClick={handleSaveAuth}
+                    />
+                  </div>
+                </div>
+              </form>
             </div>
           ) : (
             <div className="animate-in slide-in-from-bottom-10 duration-300 max-w-5xl mx-auto w-full">
@@ -501,9 +607,9 @@ function FocusableButton({ label, primary, danger, onClick, onArrowPress, focusK
           setFocus(focusKey);
         }
       }}
-      className={`flex-1 py-4 rounded-sm text-[10px] font-bold uppercase tracking-[0.4em] transition-all
+      className={`flex-1 py-4 rounded-sm text-[10px] font-bold uppercase tracking-[0.4em] transition-all outline-none focus:outline-none border-none
                  ${danger 
-                    ? (focused ? 'bg-red-600 text-white scale-105' : 'bg-red-600/20 text-red-500 border border-red-600/30')
+                    ? (focused ? 'bg-red-600 text-white scale-105' : 'bg-red-600/20 text-red-500')
                     : (primary
                         ? (focused ? 'bg-white text-black scale-105' : 'bg-[#b5924d] text-black')
                         : (focused ? 'bg-white/20 text-white' : 'bg-white/5 text-white/40'))}`}
@@ -513,7 +619,7 @@ function FocusableButton({ label, primary, danger, onClick, onArrowPress, focusK
   );
 }
 
-function FocusableInput({ value, onChange, placeholder, focusKey: customFocusKey, onArrowPress }: any) {
+function FocusableInput({ value, onChange, placeholder, type = 'text', focusKey: customFocusKey, onArrowPress }: any) {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const { ref, focused, focusKey } = useFocusable({
     focusKey: customFocusKey,
@@ -547,7 +653,7 @@ function FocusableInput({ value, onChange, placeholder, focusKey: customFocusKey
       }}>
       <input
         ref={inputRef}
-        type="text"
+        type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
@@ -555,7 +661,7 @@ function FocusableInput({ value, onChange, placeholder, focusKey: customFocusKey
               inputRef.current?.blur();
            }
         }}
-        className={`w-full bg-black/40 border-b py-4 px-2 text-2xl font-light focus:outline-none transition-all
+        className={`w-full bg-black/40 border-b py-4 px-2 text-2xl font-light focus:outline-none outline-none transition-all
                    ${focused ? 'border-[#b5924d] bg-white/5' : 'border-white/10'}`}
         placeholder={placeholder}
       />

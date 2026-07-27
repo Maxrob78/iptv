@@ -3,14 +3,17 @@ import { useRouter } from 'next/router';
 import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 import { useProfileStore } from '../store/useProfileStore';
 import { useDataStore } from '../store/useDataStore';
+import { useAuthStore } from '../store/useAuthStore';
 
 export function Sidebar() {
   const router = useRouter();
   const [isTV, setIsTV] = React.useState(false);
   const { activeProfile, setActiveProfile } = useProfileStore();
   const { startRefresh } = useDataStore();
+  const { expDate, checkAuth } = useAuthStore();
 
   React.useEffect(() => {
+    checkAuth();
     const userAgent = navigator.userAgent.toLowerCase();
     if (userAgent.includes('tizen') || userAgent.includes('webos') || (window as any).tizen) {
       setIsTV(true);
@@ -72,6 +75,11 @@ export function Sidebar() {
               }}
               isLast={true}
             />
+            {activeProfile && expDate && (
+              <div className="hidden lg:block mt-1 text-center">
+                <span className="text-[9px] uppercase tracking-[0.2em] font-black opacity-30 text-[#b5924d]">Expire le : {expDate}</span>
+              </div>
+            )}
           </div>
         </nav>
       </aside>

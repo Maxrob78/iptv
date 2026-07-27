@@ -16,7 +16,9 @@ interface AuthState {
   username: string;
   password: string;
   proxy: ProxySettings | null;
+  expDate: string | null;
   login: (serverUrl: string, user: string, pass: string) => Promise<boolean>;
+  checkAuth: () => Promise<void>;
   setProxy: (proxy: ProxySettings) => void;
   logout: () => void;
 }
@@ -29,7 +31,7 @@ export const authStorage = localforage.createInstance({
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       isLoggedIn: false,
       serverUrl: '',
       username: '',
@@ -41,6 +43,7 @@ export const useAuthStore = create<AuthState>()(
         username: '',
         password: ''
       },
+      expDate: null,
       login: async (serverUrl, username, password) => {
         try {
           const url = new URL(serverUrl);
@@ -48,7 +51,12 @@ export const useAuthStore = create<AuthState>()(
           const response = await fetch(apiUrl);
           const data = await response.json();
           if (data?.user_info?.auth === 1) {
-            set({ isLoggedIn: true, serverUrl: url.origin, username, password });
+            let expDate = null;
+            if (data.user_info.exp_date && data.user_info.exp_date !== 'null') {
+              const date = new Date(parseInt(data.user_info.exp_date) * 1000);
+              expDate = date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            }
+            set({ isLoggedIn: true, serverUrl: url.origin, username, password, expDate });
             return true;
           }
           return false;
@@ -57,8 +65,27 @@ export const useAuthStore = create<AuthState>()(
           return false;
         }
       },
+      checkAuth: async () => {
+        try {
+          const { serverUrl, username, password } = get();
+          if (!serverUrl) return;
+          const apiUrl = `${serverUrl}/player_api.php?username=${username}&password=${password}`;
+          const response = await fetch(apiUrl);
+          const data = await response.json();
+          if (data?.user_info?.auth === 1) {
+            let expDate = null;
+            if (data.user_info.exp_date && data.user_info.exp_date !== 'null') {
+              const date = new Date(parseInt(data.user_info.exp_date) * 1000);
+              expDate = date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            }
+            set({ expDate });
+          }
+        } catch (error) {
+          console.error("Check Auth Fail:", error);
+        }
+      },
       setProxy: (proxy) => set({ proxy }),
-      logout: () => set({ isLoggedIn: false, serverUrl: '', username: '', password: '', proxy: null }),
+      logout: () => set({ isLoggedIn: false, serverUrl: '', username: '', password: '', proxy: null, expDate: null }),
     }),
     {
       name: 'iptv-auth-storage',
