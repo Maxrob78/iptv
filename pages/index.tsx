@@ -696,14 +696,54 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFo
         setFocus(prevFocusKey);
         return false;
       }
-      if (direction === 'right' && nextFocusKey) {
-        setFocus(nextFocusKey);
+      if (direction === 'right') {
+        if (nextFocusKey) {
+          setFocus(nextFocusKey);
+        }
         return false;
       }
       if (direction === 'left') {
         if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
           setFocus('NAV_INDEX');
           return false;
+        }
+      }
+      if (direction === 'down' || direction === 'up') {
+        const row = ref.current?.closest('.group\\/row');
+        if (row) {
+          const allRows = Array.from(document.querySelectorAll('.group\\/row'));
+          const currentRowIdx = allRows.indexOf(row as Element);
+          const targetRowIdx = direction === 'down' ? currentRowIdx + 1 : currentRowIdx - 1;
+          
+          if (targetRowIdx >= 0 && targetRowIdx < allRows.length) {
+             const targetRow = allRows[targetRowIdx];
+             const targetCards = Array.from(targetRow.querySelectorAll('.focusable-card'));
+             if (targetCards.length > 0) {
+               const currentRect = ref.current!.getBoundingClientRect();
+               const currentCenterX = currentRect.left + (currentRect.width / 2);
+               
+               let closestCard: Element | null = null;
+               let minDistance = Infinity;
+               
+               targetCards.forEach((card) => {
+                 const rect = card.getBoundingClientRect();
+                 const cardCenterX = rect.left + (rect.width / 2);
+                 const dist = Math.abs(cardCenterX - currentCenterX);
+                 if (dist < minDistance) {
+                   minDistance = dist;
+                   closestCard = card;
+                 }
+               });
+               
+               if (closestCard) {
+                 const fk = (closestCard as HTMLElement).getAttribute('data-focus-key');
+                 if (fk) {
+                   setFocus(fk);
+                   return false;
+                 }
+               }
+             }
+          }
         }
       }
       return true;
@@ -755,9 +795,10 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFo
           setTimeout(() => { (window as any).isMouseFocus = false; }, 50);
         }
       }}
-      className={`flex-shrink-0 cursor-pointer group relative transition-all duration-500 glass-reflection ${focused ? 'is-focused' : ''} isolate
+      className={`focusable-card flex-shrink-0 cursor-pointer group relative transition-all duration-500 glass-reflection ${focused ? 'is-focused' : ''} isolate
                  ${focused ? 'ring-[#b5924d] ring-4 scale-105 shadow-[0_40px_80px_rgba(181,146,77,0.3)] z-40 transform-gpu' : 'ring-white/5 ring-1 opacity-100 z-10'}
                  ${isChannel ? 'w-48 h-48 rounded-2xl' : 'w-56 aspect-[3/4.5] rounded-xl'}`}
+      data-focus-key={focusKey}
     >
       {isHistory && onRemove && (
         <FocusableRemoveButton
