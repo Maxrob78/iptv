@@ -639,7 +639,7 @@ app.whenReady().then(() => {
       // Racine
       const rootImages = items
         .filter(item => !item.isDirectory() && /\.(jpg|jpeg|png|svg|webp|avif)$/i.test(item.name))
-        .map(item => `/avatars/${item.name}`)
+        .map(item => `file:///${path.join(finalAvatarsDir, item.name).replace(/\\/g, '/')}`)
         .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
       
       if (rootImages.length > 0) categories.push({ name: 'Général', images: rootImages });
@@ -652,7 +652,7 @@ app.whenReady().then(() => {
         const dirPath = path.join(finalAvatarsDir, dir.name);
         const images = fs.readdirSync(dirPath)
           .filter(file => /\.(jpg|jpeg|png|svg|webp|avif)$/i.test(file))
-          .map(file => `/avatars/${dir.name}/${file}`)
+          .map(file => `file:///${path.join(dirPath, file).replace(/\\/g, '/')}`)
           .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
         
         // Nettoyer le nom pour l'affichage (supporte "01_", "1.5_", etc.)

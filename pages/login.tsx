@@ -23,7 +23,7 @@ export default function Login() {
     const login = useAuthStore.getState().login;
     const success = await login(url, user, pass);
     if (success) {
-      router.push('/');
+      router.push('/profiles');
     } else {
       setError('Identifiants incorrects ou serveur injoignable.');
       setLoading(false);

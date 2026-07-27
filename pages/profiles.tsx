@@ -288,7 +288,7 @@ export default function ProfilesPage() {
                    <div className="relative">
                      <FocusableInput 
                        focusKey="AUTH_PASS_INPUT"
-                       type="password"
+                       type="text"
                        value={newPass}
                        onChange={setNewPass}
                        placeholder="Mot de passe"
@@ -324,14 +324,14 @@ export default function ProfilesPage() {
               <div className="bg-white/[0.03] border border-white/10 rounded-sm backdrop-blur-3xl overflow-hidden flex flex-col md:flex-row">
                 {/* PARTIE GAUCHE : APERÇU */}
                 <div className="w-full md:w-80 bg-white/[0.02] p-12 flex flex-col items-center justify-center border-r border-white/5">
-                  <div className="relative group mb-10">
+                  <div className="relative group mb-10 flex-shrink-0 w-56 h-56">
                     <div className="absolute inset-0 bg-[#b5924d]/20 rounded-full blur-3xl group-hover:bg-[#b5924d]/30 transition-all duration-500"></div>
                     <img 
                       key={selectedAvatar}
                       src={selectedAvatar} 
                       loading="lazy" 
                       decoding="async" 
-                      className="w-56 h-56 rounded-full border-4 border-[#b5924d] p-1.5 bg-black/40 object-cover relative z-10 shadow-[0_0_80px_rgba(181,146,77,0.4)] animate-in zoom-in-75 duration-500" 
+                      className="w-56 h-56 flex-shrink-0 rounded-full border-4 border-[#b5924d] p-1.5 bg-black/40 object-cover relative z-10 shadow-[0_0_80px_rgba(181,146,77,0.4)] animate-in zoom-in-75 duration-500" 
                       alt="" 
                     />
                   </div>

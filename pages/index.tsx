@@ -383,24 +383,30 @@ export default function Home() {
           <div className="relative min-h-[75vh] flex flex-col justify-center px-20 z-10 pt-20">
             {/* Background Poster for Hero */}
             {playbackHistory[0] ? (
-              <div className="absolute inset-0 -z-10 overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-[#030303]/90 via-[#030303]/30 to-transparent z-10" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#030303] via-transparent to-transparent z-10" />
-                <img
-                  src={playbackHistory[0].cover}
-                  className="w-full h-full object-cover object-top opacity-100 scale-105"
-                  alt=""
-                />
+              <div className="absolute inset-0 -z-10 overflow-hidden" style={{ WebkitMaskImage: 'linear-gradient(to right, transparent, black 15%)' }}>
+                <div className="absolute inset-0" style={{ WebkitMaskImage: 'linear-gradient(to top, transparent, black 50%)' }}>
+                  <img
+                    src={playbackHistory[0].cover}
+                    className="w-full h-full object-cover object-top opacity-100 scale-105"
+                    alt=""
+                  />
+                  {/* Filtres d'assombrissement pour la lisibilité du texte */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent" />
+                  <div className="absolute inset-0 bg-black/20" />
+                </div>
               </div>
             ) : movies[0] && (
-              <div className="absolute inset-0 -z-10 overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-[#030303]/90 via-[#030303]/30 to-transparent z-10" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#030303] via-transparent to-transparent z-10" />
-                <img
-                  src={movies[Math.floor(Math.random() * 10)]?.stream_icon}
-                  className="w-full h-full object-cover object-top opacity-100 scale-105"
-                  alt=""
-                />
+              <div className="absolute inset-0 -z-10 overflow-hidden" style={{ WebkitMaskImage: 'linear-gradient(to right, transparent, black 15%)' }}>
+                <div className="absolute inset-0" style={{ WebkitMaskImage: 'linear-gradient(to top, transparent, black 50%)' }}>
+                  <img
+                    src={movies[Math.floor(Math.random() * 10)]?.stream_icon}
+                    className="w-full h-full object-cover object-top opacity-100 scale-105"
+                    alt=""
+                  />
+                  {/* Filtres d'assombrissement pour la lisibilité du texte */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent" />
+                  <div className="absolute inset-0 bg-black/20" />
+                </div>
               </div>
             )}
 
