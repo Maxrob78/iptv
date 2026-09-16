@@ -13,6 +13,9 @@ module.exports = {
           darkgray: '#181818'
         }
       },
+      screens: {
+        '3xl': '2000px', // Spécifique aux écrans 1440p (2560px) et 4K
+      },
       scale: {
         '105': '1.05',
       },

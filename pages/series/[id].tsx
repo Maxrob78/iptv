@@ -201,7 +201,7 @@ export default function SeriesDetail() {
   if (loading || !data || !data.info) return (
     <div className="flex-1 flex bg-[#050505] text-white">
       <Sidebar />
-      <div className="ml-20 lg:ml-72 flex-1 flex items-center justify-center">
+      <div className="ml-20 lg:ml-72 3xl:ml-96 flex-1 flex items-center justify-center">
         <p className="text-[10px] uppercase font-bold tracking-[0.5em] animate-pulse text-[#b5924d]">Accès au Registre...</p>
       </div>
     </div>
@@ -293,7 +293,7 @@ export default function SeriesDetail() {
     <div className="flex-1 flex bg-[#050505] text-white min-h-screen font-['Inter']">
       <Sidebar />
       <FocusContext.Provider value={focusKey}>
-        <main ref={ref} className="ml-20 lg:ml-72 flex-1 relative overflow-y-auto no-scrollbar pb-40">
+        <main ref={ref} className="ml-20 lg:ml-72 3xl:ml-96 flex-1 relative overflow-y-auto no-scrollbar pb-40">
         
         {launchingVideo && (
             <div className="fixed bottom-12 right-12 z-[100] animate-in slide-in-from-right-10 duration-500">

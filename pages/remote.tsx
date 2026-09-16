@@ -7,7 +7,23 @@ import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spat
 export default function RemotePage() {
   const [localIp, setLocalIp] = useState<string>('');
   const [port, setPort] = useState<number>(3008);
+  const [qrSize, setQrSize] = useState<number>(200);
   const { remoteHubIp } = useDataStore();
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window !== 'undefined') {
+        if (window.innerWidth >= 2000) {
+          setQrSize(290);
+        } else {
+          setQrSize(200);
+        }
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const getInfo = async () => {
@@ -43,28 +59,28 @@ export default function RemotePage() {
     <div className="flex-1 flex bg-[#141414] min-h-screen">
       <Sidebar />
       <FocusContext.Provider value={focusKey}>
-        <main ref={ref} className="ml-20 lg:ml-64 flex-1 p-12 overflow-y-auto">
-          <header className="mb-12">
+        <main ref={ref} className="ml-20 lg:ml-72 3xl:ml-96 flex-1 p-8 lg:p-12 3xl:p-16 overflow-y-auto">
+          <header className="mb-12 3xl:mb-16">
             <div className="flex items-center space-x-3 mb-2">
-              <span className="w-1.5 h-8 bg-[#b5924d] rounded-full shadow-[0_0_10px_#b5924d]" />
-              <span className="text-xs font-black uppercase tracking-[0.3em] text-[#b5924d] opacity-80">Connectivité</span>
+              <span className="w-1.5 h-8 3xl:h-10 bg-[#b5924d] rounded-full shadow-[0_0_10px_#b5924d]" />
+              <span className="text-xs 3xl:text-sm font-black uppercase tracking-[0.3em] text-[#b5924d] opacity-80">Connectivité</span>
             </div>
-            <h1 className="text-5xl font-black mb-4 tracking-tighter text-white">Télécommande Mobile</h1>
-            <p className="text-gray-400 text-lg font-medium max-w-xl leading-relaxed">
+            <h1 className="text-5xl 3xl:text-7xl font-black mb-4 tracking-tighter text-white">Télécommande Mobile</h1>
+            <p className="text-gray-400 text-lg 3xl:text-2xl font-medium max-w-xl 3xl:max-w-3xl leading-relaxed">
               Contrôlez Platinum Media Center depuis votre smartphone. Scannez le QR Code pour lancer l'application télécommande.
             </p>
           </header>
 
-          <div className="flex flex-col md:flex-row gap-12 items-start mt-16">
+          <div className="flex flex-col md:flex-row gap-12 3xl:gap-20 items-start mt-12 3xl:mt-20">
             
             {/* Section QR Code */}
-            <div className="bg-white/5 border border-white/10 rounded-3xl p-10 backdrop-blur-xl flex flex-col items-center justify-center shadow-2xl relative overflow-hidden group">
+            <div className="bg-white/5 border border-white/10 rounded-3xl p-10 3xl:p-14 backdrop-blur-xl flex flex-col items-center justify-center shadow-2xl relative overflow-hidden group">
               <div className="absolute inset-0 bg-gradient-to-br from-[#b5924d]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
               
-              <div className="bg-white p-6 rounded-2xl shadow-2xl relative z-10 transform transition-transform duration-500 hover:scale-105">
+              <div className="bg-white p-6 3xl:p-8 rounded-2xl shadow-2xl relative z-10 transform transition-transform duration-500 hover:scale-105">
                 <QRCodeSVG 
                   value={remoteUrl} 
-                  size={200} 
+                  size={qrSize} 
                   bgColor={"#ffffff"} 
                   fgColor={"#000000"} 
                   level={"H"} 
@@ -72,44 +88,44 @@ export default function RemotePage() {
                 />
               </div>
               
-              <p className="mt-8 text-sm font-bold text-gray-400 tracking-[0.2em] uppercase">
+              <p className="mt-8 3xl:mt-10 text-sm 3xl:text-base font-bold text-gray-400 tracking-[0.2em] uppercase">
                 IP: <span className="text-white">{localIp}</span>
               </p>
             </div>
 
             {/* Instructions */}
-            <div className="space-y-8 max-w-lg pt-4">
-              <div className="flex items-start space-x-6">
-                <div className="w-12 h-12 rounded-full bg-[#b5924d]/20 border border-[#b5924d]/50 flex items-center justify-center flex-shrink-0">
-                  <span className="text-xl font-black text-[#b5924d]">1</span>
+            <div className="space-y-8 3xl:space-y-12 max-w-lg 3xl:max-w-2xl pt-4">
+              <div className="flex items-start space-x-6 3xl:space-x-8">
+                <div className="w-12 h-12 3xl:w-16 3xl:h-16 rounded-full bg-[#b5924d]/20 border border-[#b5924d]/50 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xl 3xl:text-3xl font-black text-[#b5924d]">1</span>
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white mb-2">Connectez-vous au Wi-Fi</h3>
-                  <p className="text-gray-400 leading-relaxed">
+                  <h3 className="text-xl 3xl:text-3xl font-bold text-white mb-2">Connectez-vous au Wi-Fi</h3>
+                  <p className="text-gray-400 3xl:text-xl leading-relaxed">
                     Assurez-vous que votre smartphone est connecté sur le même réseau Wi-Fi que cet appareil.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-start space-x-6">
-                <div className="w-12 h-12 rounded-full bg-[#b5924d]/20 border border-[#b5924d]/50 flex items-center justify-center flex-shrink-0">
-                  <span className="text-xl font-black text-[#b5924d]">2</span>
+              <div className="flex items-start space-x-6 3xl:space-x-8">
+                <div className="w-12 h-12 3xl:w-16 3xl:h-16 rounded-full bg-[#b5924d]/20 border border-[#b5924d]/50 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xl 3xl:text-3xl font-black text-[#b5924d]">2</span>
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white mb-2">Scannez le QR Code</h3>
-                  <p className="text-gray-400 leading-relaxed">
+                  <h3 className="text-xl 3xl:text-3xl font-bold text-white mb-2">Scannez le QR Code</h3>
+                  <p className="text-gray-400 3xl:text-xl leading-relaxed">
                     Ouvrez l'appareil photo de votre téléphone et pointez-le vers le QR Code à l'écran.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-start space-x-6">
-                <div className="w-12 h-12 rounded-full bg-[#b5924d]/20 border border-[#b5924d]/50 flex items-center justify-center flex-shrink-0">
-                  <span className="text-xl font-black text-[#b5924d]">3</span>
+              <div className="flex items-start space-x-6 3xl:space-x-8">
+                <div className="w-12 h-12 3xl:w-16 3xl:h-16 rounded-full bg-[#b5924d]/20 border border-[#b5924d]/50 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xl 3xl:text-3xl font-black text-[#b5924d]">3</span>
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white mb-2">Prenez le contrôle</h3>
-                  <p className="text-gray-400 leading-relaxed">
+                  <h3 className="text-xl 3xl:text-3xl font-bold text-white mb-2">Prenez le contrôle</h3>
+                  <p className="text-gray-400 3xl:text-xl leading-relaxed">
                     La web-app s'ouvrira instantanément. Vous pourrez naviguer, lire des vidéos et régler le volume sans aucune installation.
                   </p>
                 </div>

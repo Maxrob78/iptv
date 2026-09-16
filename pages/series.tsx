@@ -115,7 +115,7 @@ export default function Series() {
     <div className="flex-1 flex bg-[#050505] min-h-screen text-white font-['Inter'] selection:bg-[#b5924d]/30">
       <Sidebar />
       <FocusContext.Provider value={focusKey}>
-        <main ref={ref} className="ml-20 lg:ml-72 flex-1 relative overflow-y-auto no-scrollbar">
+        <main ref={ref} className="ml-20 lg:ml-72 3xl:ml-96 flex-1 relative overflow-y-auto no-scrollbar">
 
           {/* Ambient Atmosphere */}
           <div className="fixed inset-0 pointer-events-none z-0">

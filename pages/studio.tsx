@@ -113,7 +113,7 @@ export default function StudioPage() {
   return (
     <div className="flex-1 flex bg-[#050505] min-h-screen text-white font-['Inter'] selection:bg-gold/30">
       <Sidebar />
-      <main className="ml-20 lg:ml-64 flex-1">
+      <main className="ml-20 lg:ml-72 3xl:ml-96 flex-1">
         
         {/* Atmosphere - Soft Glows */}
         <div className="fixed inset-0 pointer-events-none overflow-hidden">

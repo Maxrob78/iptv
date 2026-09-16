@@ -29,12 +29,16 @@ IF %ERRORLEVEL% EQU 0 (
     set "PATH=%CD%\node-portable;%PATH%"
 )
 
-:: 2. Installer les modules si manquant (le dossier node_modules)
+:: 2. Installer les modules si manquants ou incomplets
 IF NOT EXIST "node_modules\" (
     echo [INSTALLATION] Premier lancement detecte ! Telechargement des dependances...
     echo Cela prend un peu de temps la premiere fois...
     call npm install
     echo [OK] Dependances installees !
+) ELSE IF NOT EXIST "node_modules\concurrently\" (
+    echo [MISE A JOUR] Installation des outils de lancement manquants...
+    call npm install
+    echo [OK] Dependances mises a jour !
 )
 
 :: 3. Lancement

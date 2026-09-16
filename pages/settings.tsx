@@ -54,7 +54,7 @@ export default function Settings() {
   return (
     <div className="flex-1 flex bg-[#141414]">
       <Sidebar />
-      <main className="ml-20 lg:ml-64 flex-1 p-12 overflow-y-auto">
+      <main className="ml-20 lg:ml-72 3xl:ml-96 flex-1 p-8 lg:p-12 3xl:p-16 overflow-y-auto">
         {savedMessage && (
           <div className="fixed bottom-10 right-10 bg-[#b5924d] text-black px-6 py-4 rounded-2xl shadow-2xl font-black uppercase tracking-widest text-[10px] animate-in fade-in slide-in-from-bottom-5 z-[999]">
             {savedMessage}
