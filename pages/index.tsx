@@ -574,8 +574,11 @@ function FocusableHeroButton({ children, onClick, primary, focusKey: customFocus
     onArrowPress: (direction) => {
       if (direction === 'up') return false;
       if (direction === 'left') {
-        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
+        if (primary || customFocusKey === 'HERO_RESUME') {
           setFocus('NAV_INDEX');
+          return false;
+        } else {
+          setFocus('HERO_RESUME');
           return false;
         }
       }
@@ -698,8 +701,12 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFo
     focusKey: customFocusKey,
     onEnterPress: () => onClick(item),
     onArrowPress: (direction) => {
-      if (direction === 'left' && prevFocusKey) {
-        setFocus(prevFocusKey);
+      if (direction === 'left') {
+        if (prevFocusKey) {
+          setFocus(prevFocusKey);
+        } else {
+          setFocus('NAV_INDEX');
+        }
         return false;
       }
       if (direction === 'right') {
@@ -707,12 +714,6 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFo
           setFocus(nextFocusKey);
         }
         return false;
-      }
-      if (direction === 'left') {
-        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
-          setFocus('NAV_INDEX');
-          return false;
-        }
       }
       if (direction === 'down' || direction === 'up') {
         const row = ref.current?.closest('.group\\/row');

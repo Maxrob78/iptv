@@ -304,7 +304,15 @@ function FocusableMovie({ vid, idx, onClick, onLongPress }: any) {
     focusKey: `MOVIE_${vid.stream_id}`,
     onArrowPress: (direction) => {
       if (direction === 'left') {
-        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
+        const grid = ref.current?.closest('.grid');
+        if (grid && ref.current) {
+          const gridLeft = grid.getBoundingClientRect().left;
+          const cardLeft = ref.current.getBoundingClientRect().left;
+          if (cardLeft - gridLeft < 60) {
+            setFocus('NAV_MOVIES');
+            return false;
+          }
+        } else if (ref.current && ref.current.getBoundingClientRect().left <= 500) {
           setFocus('NAV_MOVIES');
           return false;
         }

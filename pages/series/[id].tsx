@@ -45,7 +45,14 @@ export default function SeriesDetail() {
   const { ref, focusKey } = useFocusable({
     focusKey: 'MAIN_CONTENT',
     saveLastFocusedChild: true,
-    trackChildren: true
+    trackChildren: true,
+    onArrowPress: (direction) => {
+      if (direction === 'left') {
+        setFocus('NAV_SERIES');
+        return false;
+      }
+      return true;
+    }
   });
 
   const userRating = useRatingStore(state => {
@@ -540,7 +547,9 @@ function FocusableSeasonButton({ s, isActive, onClick, focusKey: customFocusKey 
         return false;
       }
       if (direction === 'left') {
-        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
+        const parent = ref.current?.parentElement;
+        const isFirst = !parent || parent.firstElementChild === ref.current;
+        if (isFirst || (ref.current && ref.current.getBoundingClientRect().left <= 500)) {
           setFocus('NAV_SERIES');
           return false;
         }
@@ -600,7 +609,15 @@ function FocusableEpisodeCard({ ep, history, onClick, focusKey: customFocusKey, 
     onEnterPress: () => onClick(ep),
     onArrowPress: (direction) => {
       if (direction === 'left') {
-        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
+        const grid = ref.current?.closest('.grid');
+        if (grid && ref.current) {
+          const gridLeft = grid.getBoundingClientRect().left;
+          const cardLeft = ref.current.getBoundingClientRect().left;
+          if (cardLeft - gridLeft < 60) {
+            setFocus('NAV_SERIES');
+            return false;
+          }
+        } else if (ref.current && ref.current.getBoundingClientRect().left <= 500) {
           setFocus('NAV_SERIES');
           return false;
         }
@@ -737,10 +754,8 @@ function FocusableAction({ children, onClick, focusKey: customFocusKey }: any) {
         return false;
       }
       if (direction === 'left') {
-        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
-          setFocus('NAV_SERIES');
-          return false;
-        }
+        setFocus('NAV_SERIES');
+        return false;
       }
       return true;
     },
@@ -778,7 +793,9 @@ function ActorBadge({ name, role, onClick, sidebarFocusKey }: { name: string, ro
     onEnterPress: onClick,
     onArrowPress: (direction) => {
       if (direction === 'left' && sidebarFocusKey) {
-        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
+        const parent = ref.current?.parentElement;
+        const isFirst = !parent || parent.firstElementChild === ref.current;
+        if (isFirst || (ref.current && ref.current.getBoundingClientRect().left <= 500)) {
           setFocus(sidebarFocusKey);
           return false;
         }

@@ -162,7 +162,15 @@ export default function FavoritesPage() {
 // ─── Category ────────────────────────────────────────────────────────────────
 
 function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItemInCategory, removeItemFromCategory, handlePlay }: any) {
-  const { ref, focusKey } = useFocusable();
+  const { ref, focusKey } = useFocusable({
+    onArrowPress: (direction) => {
+      if (direction === 'left') {
+        setFocus('NAV_FAVORITES');
+        return false;
+      }
+      return true;
+    }
+  });
   const setCategorySortOrder = useDataStore(state => state.setCategorySortOrder);
   const renameCategory = useDataStore(state => state.renameCategory);
   const profileId = useProfileStore.getState().activeProfile?.id || 'default';
@@ -535,7 +543,15 @@ function FocusableCardImage({ id, item, isChannel, onClick, onFocus, onBlur, cus
     onEnterPress: onClick,
     onArrowPress: (direction) => {
       if (direction === 'left') {
-        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
+        const grid = ref.current?.closest('.grid');
+        if (grid && ref.current) {
+          const gridLeft = grid.getBoundingClientRect().left;
+          const cardLeft = ref.current.getBoundingClientRect().left;
+          if (cardLeft - gridLeft < 60) {
+            setFocus('NAV_FAVORITES');
+            return false;
+          }
+        } else if (ref.current && ref.current.getBoundingClientRect().left <= 500) {
           setFocus('NAV_FAVORITES');
           return false;
         }
@@ -600,7 +616,15 @@ function ActionBtn({ focusKey: fk, onClick, icon, danger, onFocus, onBlur, exitL
       // MAIN_CONTENT) drops focus instead of reaching MAIN_CONTENT's handler.
       // Hand off explicitly instead.
       if (exitLeftToSidebar && direction === 'left') {
-        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
+        const grid = ref.current?.closest('.grid');
+        if (grid && ref.current) {
+          const gridLeft = grid.getBoundingClientRect().left;
+          const btnLeft = ref.current.getBoundingClientRect().left;
+          if (btnLeft - gridLeft < 100) {
+            setFocus('NAV_FAVORITES');
+            return false;
+          }
+        } else {
           setFocus('NAV_FAVORITES');
           return false;
         }

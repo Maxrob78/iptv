@@ -34,7 +34,14 @@ export default function MovieDetail() {
   const { ref, focusKey } = useFocusable({
     focusKey: 'MOVIE_MAIN_CONTENT',
     saveLastFocusedChild: true,
-    trackChildren: true
+    trackChildren: true,
+    onArrowPress: (direction) => {
+      if (direction === 'left') {
+        setFocus('NAV_MOVIES');
+        return false;
+      }
+      return true;
+    }
   });
 
   const userRating = useRatingStore(state => {
@@ -457,7 +464,14 @@ function PlayButton({ onClick, text }: { onClick: () => void, text: string }) {
   const { ref, focused } = useFocusable({
     focusKey: 'MOVIE_PLAY_BTN',
     onEnterPress: onClick,
-    onFocus: () => setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50)
+    onFocus: () => setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50),
+    onArrowPress: (direction) => {
+      if (direction === 'left') {
+        setFocus('NAV_MOVIES');
+        return false;
+      }
+      return true;
+    }
   });
 
   return (
@@ -557,7 +571,9 @@ function ActorBadge({ name, role, onClick, sidebarFocusKey }: { name: string, ro
     onEnterPress: onClick,
     onArrowPress: (direction) => {
       if (direction === 'left' && sidebarFocusKey) {
-        if (ref.current && ref.current.getBoundingClientRect().left <= 400) {
+        const parent = ref.current?.parentElement;
+        const isFirst = !parent || parent.firstElementChild === ref.current;
+        if (isFirst || (ref.current && ref.current.getBoundingClientRect().left <= 500)) {
           setFocus(sidebarFocusKey);
           return false;
         }
@@ -598,7 +614,7 @@ function FocusableBackButton({ onClick }: { onClick: () => void }) {
     onFocus: () => setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50),
     onArrowPress: (direction) => {
       if (direction === 'left') {
-        setFocus('SIDEBAR');
+        setFocus('NAV_MOVIES');
         return false;
       }
       if (direction === 'right') return false;
