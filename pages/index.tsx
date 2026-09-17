@@ -123,7 +123,16 @@ export default function Home() {
         }
       });
 
-      return () => removeProgress();
+      const removeStatus = (window as any).electronAPI.on('mpv-status', (data: any) => {
+        if (data && (data.status === 'error' || data.status === 'closed')) {
+          setLaunchingVideo(null);
+        }
+      });
+
+      return () => {
+        removeProgress();
+        removeStatus();
+      };
     }
   }, []);
 

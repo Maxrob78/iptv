@@ -22,8 +22,26 @@ export default function AppWrapper({ Component, pageProps }: any) {
   const [showSuccess, setShowSuccess] = useState(false);
   const [successCount, setSuccessCount] = useState({ movies: 0, channels: 0, series: 0 });
   const [subtitleToast, setSubtitleToast] = useState('');
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
   const prevIsRefreshing = useRef(false);
+  const routerRef = useRef(router);
+  routerRef.current = router;
   const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
+  useEffect(() => {
+    const handleRouteChangeStart = () => {
+      const currentPath = routerRef.current?.pathname || window.location.pathname;
+      (window as any).__previousRoute = currentPath;
+      try {
+        sessionStorage.setItem('__previousRoute', currentPath);
+      } catch (e) {}
+    };
+
+    router.events.on('routeChangeStart', handleRouteChangeStart);
+    return () => {
+      router.events.off('routeChangeStart', handleRouteChangeStart);
+    };
+  }, [router]);
 
   useEffect(() => {
     setMounted(true);
@@ -69,7 +87,8 @@ export default function AppWrapper({ Component, pageProps }: any) {
       setHydrated(true);
     }
 
-    // Initialize OS Settings in main process and listen for subtitle errors
+    // Initialize OS Settings in main process and listen for subtitle & MPV errors
+    let cleanupMpv: (() => void) | undefined;
     if ((window as any).electronAPI) {
       const osEnabled = useDataStore.getState().osEnabled;
       const osApiKey = useDataStore.getState().osApiKey;
@@ -78,21 +97,37 @@ export default function AppWrapper({ Component, pageProps }: any) {
       }
       
       if ((window as any).electronAPI.onSubtitleError) {
-        const cleanupSubErr = (window as any).electronAPI.onSubtitleError((msg: string) => {
+        (window as any).electronAPI.onSubtitleError((msg: string) => {
           setSubtitleToast(msg);
           setTimeout(() => setSubtitleToast(''), 4000);
         });
-        // We can't really cleanup easily here because this runs once, but it's fine for global listener
+      }
+
+      if ((window as any).electronAPI.on) {
+        cleanupMpv = (window as any).electronAPI.on('mpv-status', (data: any) => {
+          if (data && data.status === 'error') {
+            setPlaybackError(data.error || 'Impossible de charger le flux vidéo.');
+          }
+        });
       }
     }
 
     // Cleanup logic for hydration and electron
     return () => {
       unsub();
+      if (cleanupMpv) cleanupMpv();
     };
-  }, [router]);
+  }, []);
 
-  // Gestion de l'inactivité (Veille Active)
+  // Auto-dismiss playback error after 9 seconds
+  useEffect(() => {
+    if (playbackError) {
+      const timer = setTimeout(() => setPlaybackError(null), 9000);
+      return () => clearTimeout(timer);
+    }
+  }, [playbackError]);
+
+  // Gestion de l'inactivité (Veille Active) & Touches Retour Globales
   useEffect(() => {
     let idleTimer: any;
     const resetTimer = () => {
@@ -100,11 +135,29 @@ export default function AppWrapper({ Component, pageProps }: any) {
       clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
         setIsIdle(true);
-      }, 5 * 60 * 1000); // 5 minutes
+      }, IDLE_TIMEOUT);
     };
 
     const handleGlobalBack = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'Backspace') {
+      const isBackKey = 
+        e.key === 'Escape' || 
+        e.key === 'Backspace' || 
+        e.key === 'GoBack' || 
+        e.key === 'Return' || 
+        e.keyCode === 10009 || // Tizen Return
+        e.keyCode === 461 ||   // webOS Back
+        e.keyCode === 4 ||     // Android Back
+        e.which === 10009 || 
+        e.which === 461 || 
+        e.which === 4;
+
+      if (isBackKey) {
+        // 1. Fermer l'erreur de lecture si affichée
+        if (playbackError) {
+          setPlaybackError(null);
+          return;
+        }
+
         const active = document.activeElement;
         // Ne pas naviguer en arrière si on est dans un champ de texte
         if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
@@ -126,7 +179,7 @@ export default function AppWrapper({ Component, pageProps }: any) {
         if (!path.endsWith('/') && !path.endsWith('index.html') && 
             !path.endsWith('/profiles') && !path.endsWith('profiles.html') && 
             !path.endsWith('/login') && !path.endsWith('login.html')) {
-          router.back();
+          routerRef.current.back();
         }
       }
     };
@@ -142,7 +195,7 @@ export default function AppWrapper({ Component, pageProps }: any) {
       window.removeEventListener('keydown', handleGlobalBack);
       clearTimeout(idleTimer);
     };
-  }, []);
+  }, [playbackError]);
 
   const { activeProfile } = useProfileStore();
   const { isRefreshing } = useDataStore();
@@ -266,6 +319,34 @@ export default function AppWrapper({ Component, pageProps }: any) {
       {subtitleToast && (
         <div className="fixed bottom-10 left-10 bg-red-600/90 text-white px-6 py-4 rounded-2xl shadow-2xl font-black uppercase tracking-widest text-[10px] animate-in fade-in slide-in-from-bottom-5 z-[9999]">
           {subtitleToast}
+        </div>
+      )}
+
+      {/* Alerte Erreur Lecture Vidéo (MPV / Stream) */}
+      {playbackError && (
+        <div className="fixed bottom-12 right-12 z-[10000] max-w-lg bg-[#080808]/95 backdrop-blur-2xl border border-red-500/30 p-8 rounded-2xl shadow-[0_30px_70px_rgba(0,0,0,0.9)] animate-in slide-in-from-bottom-5 duration-300 flex items-start space-x-5">
+          <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center flex-shrink-0 text-red-400 mt-1 shadow-[0_0_20px_rgba(239,68,68,0.2)]">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center space-x-3 mb-1">
+              <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-red-400">Échec de lecture</span>
+              <span className="text-[8px] font-medium text-gray-500 uppercase tracking-widest">• Registre IPTV</span>
+            </div>
+            <p className="text-[11px] text-gray-200 font-light leading-relaxed mb-4">
+              {playbackError}
+            </p>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setPlaybackError(null)}
+                className="px-6 py-2.5 bg-white text-black hover:bg-gray-200 rounded-lg text-[10px] uppercase tracking-widest transition-all font-bold shadow-lg"
+              >
+                Fermer (Retour)
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

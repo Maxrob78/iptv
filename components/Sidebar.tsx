@@ -44,8 +44,24 @@ export function Sidebar() {
           <NavButton customFocusKey="NAV_INDEX" icon="🏠" label="Index" active={router.pathname === '/'} onClick={() => router.push('/')} isFirst={true} />
           <NavButton customFocusKey="NAV_MOVIES" icon="🎬" label="Cinéma" active={router.pathname.includes('/movies')} onClick={() => router.push('/movies')} />
           <NavButton customFocusKey="NAV_CHANNELS" icon="📺" label="Canaux" active={router.pathname.includes('/channels')} onClick={() => router.push('/channels')} />
-          <NavButton customFocusKey="NAV_SERIES" icon="🍿" label="Séries" active={router.pathname.includes('/series')} onClick={() => router.push('/series')} />
-          <NavButton customFocusKey="NAV_FAVORITES" icon="✨" label="Favoris" active={router.pathname.includes('/favorites')} onClick={() => router.push('/favorites')} />
+          <NavButton
+            customFocusKey="NAV_FAVORITES"
+            icon="✨"
+            label="Favoris"
+            active={router.pathname.includes('/favorites')}
+            onClick={() => {
+              if (router.pathname.includes('/favorites')) {
+                try {
+                  setFocus('FIRST_FAV_TITLE');
+                } catch (e) {}
+                const main = document.querySelector('main');
+                if (main) main.scrollTop = 0;
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              } else {
+                router.push('/favorites');
+              }
+            }}
+          />
           <NavButton customFocusKey="NAV_REMOTE" icon="📱" label="Remote" active={router.pathname.includes('/remote')} onClick={() => router.push('/remote')} />
           <NavButton
             customFocusKey="NAV_REFRESH"

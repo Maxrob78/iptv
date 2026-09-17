@@ -31,6 +31,16 @@ export default function Channels() {
     }
   });
 
+  useEffect(() => {
+    if ((window as any).electronAPI && (window as any).electronAPI.on) {
+      return (window as any).electronAPI.on('mpv-status', (data: any) => {
+        if (data && (data.status === 'error' || data.status === 'closed')) {
+          setLaunchingVideo(null);
+        }
+      });
+    }
+  }, []);
+
   // Sync Search with URL
   useEffect(() => {
     if (router.isReady && router.query.q) {

@@ -29,7 +29,7 @@ if (typeof window !== 'undefined') {
 
 export default function FavoritesPage() {
   const router = useRouter();
-  const { getProfileData, removeCategory, removeItemFromCategory, moveCategory, moveItemInCategory } = useDataStore();
+  const { getProfileData, removeCategory, removeItemFromCategory, moveCategory, moveItemInCategory, addCategory } = useDataStore();
   const { favoriteCategories } = getProfileData();
   const [mounted, setMounted] = useState(false);
   const [launchingVideo, setLaunchingVideo] = useState<string | null>(null);
@@ -53,15 +53,66 @@ export default function FavoritesPage() {
 
   useEffect(() => {
     setMounted(true);
+    if ((window as any).electronAPI && (window as any).electronAPI.on) {
+      return (window as any).electronAPI.on('mpv-status', (data: any) => {
+        if (data && (data.status === 'error' || data.status === 'closed')) {
+          setLaunchingVideo(null);
+        }
+      });
+    }
   }, []);
 
   useEffect(() => {
     if (mounted) {
-      setTimeout(() => {
-        setFocus('FIRST_FAV_TITLE');
-      }, 400);
+      const prevRoute = (window as any).__previousRoute || (typeof window !== 'undefined' ? sessionStorage.getItem('__previousRoute') : null);
+      const isFromDetail = prevRoute === '/movie/[id]' || prevRoute === '/series/[id]' || prevRoute === '/player/[id]' ||
+        (typeof prevRoute === 'string' && (prevRoute.startsWith('/movie/') || prevRoute.startsWith('/series/') || prevRoute.startsWith('/player/')));
+
+      const savedKey = (window as any).__lastFavClickedItem || (typeof window !== 'undefined' ? sessionStorage.getItem('fav_clicked_key') : null);
+
+      const attemptFocus = () => {
+        if (isFromDetail && (savedKey || lastFocusedFavKey)) {
+          const keyToFocus = savedKey || lastFocusedFavKey;
+          try {
+            setFocus(keyToFocus);
+            lastFocusedFavKey = keyToFocus;
+            return;
+          } catch (e) {}
+        }
+
+        // Si on arrive depuis une autre page (ex: Cinéma, Canaux, Séries, Index, etc.) :
+        // Le focus doit toujours repartir du titre tout en haut, pas du dernier élément visité
+        lastFocusedFavKey = null;
+        (window as any).__lastFavClickedItem = null;
+        try {
+          sessionStorage.removeItem('fav_clicked_key');
+        } catch (e) {}
+
+        const targetKey = favoriteCategories.length > 0 ? 'FIRST_FAV_TITLE' : 'CREATE_FIRST_CAT_BTN';
+        try {
+          setFocus(targetKey);
+        } catch (e) {}
+        if (ref.current) {
+          ref.current.scrollTop = 0;
+        }
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      };
+
+      const timer1 = setTimeout(attemptFocus, 150);
+      const timer2 = setTimeout(() => {
+        if (isFromDetail && (savedKey || lastFocusedFavKey)) {
+          try {
+            setFocus(savedKey || lastFocusedFavKey);
+          } catch (e) {}
+        }
+      }, 350);
+
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+      };
     }
-  }, [mounted]);
+  }, [mounted, favoriteCategories.length]);
 
   if (!mounted) return null;
 
@@ -132,13 +183,16 @@ export default function FavoritesPage() {
 
           <div className="px-20 relative z-10 space-y-40 pb-40">
             {favoriteCategories.length === 0 ? (
-              <div className="py-24 text-center border border-white/5 rounded-sm bg-white/[0.01]">
+              <div className="py-24 text-center border border-white/5 rounded-sm bg-white/[0.01] flex flex-col items-center justify-center space-y-6">
                 <p className="text-gray-600 font-light uppercase text-[10px] tracking-[0.4em]">Aucun Registre Indexé</p>
+                <FocusableEmptyAddButton onAdd={(name: string) => addCategory(name)} />
               </div>
             ) : (
               favoriteCategories.map((cat, catIdx) => (
                 <FocusableCategory
                   key={cat.id} cat={cat} catIdx={catIdx}
+                  totalCategories={favoriteCategories.length}
+                  allCategories={favoriteCategories}
                   moveCategory={moveCategory} removeCategory={removeCategory}
                   moveItemInCategory={moveItemInCategory} removeItemFromCategory={removeItemFromCategory}
                   handlePlay={handlePlay}
@@ -159,9 +213,92 @@ export default function FavoritesPage() {
   );
 }
 
+// ─── Empty state add button ──────────────────────────────────────────────────
+
+function FocusableEmptyAddButton({ onAdd }: { onAdd: (name: string) => void }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState('');
+
+  const { ref, focused, focusKey } = useFocusable({
+    focusKey: 'CREATE_FIRST_CAT_BTN',
+    onEnterPress: () => {
+      if (!isEditing) setIsEditing(true);
+    },
+    onArrowPress: (direction) => {
+      if (direction === 'left') {
+        setFocus('NAV_FAVORITES');
+        return false;
+      }
+      return true;
+    }
+  });
+
+  const submit = () => {
+    const finalName = name.trim() || 'Favoris';
+    setIsEditing(false);
+    setName('');
+    onAdd(finalName);
+    setTimeout(() => {
+      try {
+        setFocus('FIRST_FAV_TITLE');
+        lastFocusedFavKey = 'FIRST_FAV_TITLE';
+      } catch {
+        setFocus('NAV_FAVORITES');
+      }
+    }, 150);
+  };
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center space-x-3 animate-in fade-in duration-200">
+        <input
+          type="text"
+          autoFocus
+          value={name}
+          placeholder="Nom de la collection"
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === 'Enter') submit();
+            if (e.key === 'Escape') {
+              setIsEditing(false);
+              setTimeout(() => setFocus(focusKey), 50);
+            }
+          }}
+          onBlur={submit}
+          className="bg-black/90 border border-[#b5924d] text-white px-5 py-2.5 rounded-sm text-xs uppercase tracking-widest outline-none shadow-xl"
+        />
+        <button
+          onClick={submit}
+          className="bg-[#b5924d] text-black px-4 py-2.5 rounded-sm text-[10px] font-bold uppercase tracking-widest hover:bg-white transition-colors"
+        >
+          Valider
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      ref={ref}
+      onClick={() => setIsEditing(true)}
+      onMouseEnter={() => { if (isMouseMode) setFocus(focusKey); }}
+      className={`px-6 py-3 border text-[10px] font-bold uppercase tracking-[0.3em] rounded-sm transition-all outline-none flex items-center space-x-3
+        ${focused
+          ? 'bg-white text-black scale-105 shadow-[0_0_25px_rgba(255,255,255,0.4)] border-white'
+          : 'text-[#b5924d] border-[#b5924d]/40 hover:border-[#b5924d] bg-black/40'}`}
+    >
+      <span className="text-base font-light leading-none">+</span>
+      <span>Créer une collection</span>
+    </button>
+  );
+}
+
 // ─── Category ────────────────────────────────────────────────────────────────
 
-function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItemInCategory, removeItemFromCategory, handlePlay }: any) {
+const FocusableCategory = React.memo(function FocusableCategory({
+  cat, catIdx, totalCategories, allCategories, moveCategory, removeCategory, moveItemInCategory, removeItemFromCategory, handlePlay
+}: any) {
   const { ref, focusKey } = useFocusable({
     onArrowPress: (direction) => {
       if (direction === 'left') {
@@ -177,50 +314,84 @@ function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItem
   const ratings = useRatingStore(state => state.ratings[profileId]) || {};
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  const isFirstCat = catIdx === 0;
+  const isLastCat = catIdx === (totalCategories || 1) - 1;
+
   const sortedItems = useMemo(() => {
     const sortOrder = cat.sortOrder || 'default';
     let items = [...cat.items];
 
-    const extractDateFromTitle = (title: string) => {
+    const extractDateFromTitle = (title: string): number => {
       if (!title) return 0;
-      // YYYY-MM-DD or YYYY.MM.DD
-      let match = title.match(/(\d{4})[-\.](\d{2})[-\.](\d{2})/);
-      if (match) return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3])).getTime();
 
-      // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
-      match = title.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})/);
-      if (match) return new Date(parseInt(match[3]), parseInt(match[2]) - 1, parseInt(match[1])).getTime();
+      // 1. Chercher toutes les dates complètes (YYYY-MM-DD, DD/MM/YYYY, etc.) et prendre la DERNIÈRE
+      const fullDateRegex = /\b(?:(\d{4})[-\.](\d{2})[-\.](\d{2})|(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})|(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2}))\b/g;
+      let match: RegExpExecArray | null;
+      let lastFullDateTs = 0;
 
-      // DD/MM/YY
-      match = title.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2})/);
-      if (match) {
-        let year = parseInt(match[3]);
-        year += year > 50 ? 1900 : 2000;
-        return new Date(year, parseInt(match[2]) - 1, parseInt(match[1])).getTime();
+      while ((match = fullDateRegex.exec(title)) !== null) {
+        if (match[1] && match[2] && match[3]) {
+          // YYYY-MM-DD
+          const ts = new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3])).getTime();
+          if (!isNaN(ts)) lastFullDateTs = ts;
+        } else if (match[4] && match[5] && match[6]) {
+          // DD/MM/YYYY
+          const ts = new Date(parseInt(match[6]), parseInt(match[5]) - 1, parseInt(match[4])).getTime();
+          if (!isNaN(ts)) lastFullDateTs = ts;
+        } else if (match[7] && match[8] && match[9]) {
+          // DD/MM/YY
+          let year = parseInt(match[9]);
+          year += year > 50 ? 1900 : 2000;
+          const ts = new Date(year, parseInt(match[8]) - 1, parseInt(match[7])).getTime();
+          if (!isNaN(ts)) lastFullDateTs = ts;
+        }
       }
 
-      // Année seule (ex: 2024)
+      if (lastFullDateTs > 0) return lastFullDateTs;
+
+      // 2. Si pas de date complète, chercher toutes les années (4 chiffres) et prendre la DERNIÈRE mentionnée
       const yearMatches = title.match(/\b(19\d{2}|20\d{2})\b/g);
-      if (yearMatches) {
-        const lastYear = yearMatches[yearMatches.length - 1]; // Prend la dernière année mentionnée
-        return new Date(parseInt(lastYear), 0, 1).getTime();
+      if (yearMatches && yearMatches.length > 0) {
+        const lastYear = parseInt(yearMatches[yearMatches.length - 1]);
+        const ts = new Date(lastYear, 0, 1).getTime();
+        if (!isNaN(ts)) return ts;
       }
 
       return 0;
     };
 
+    const getItemDate = (item: any): number => {
+      if (!item) return 0;
+      // 1. Métadonnées directes prioritaires
+      if (item.release_date || item.releasedate) {
+        const raw = String(item.release_date || item.releasedate).trim();
+        const parsed = Date.parse(raw);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+      }
+      if (item.year) {
+        const y = parseInt(String(item.year).trim());
+        if (!isNaN(y) && y >= 1900 && y <= 2100) {
+          return new Date(y, 0, 1).getTime();
+        }
+      }
+      if (item.added) {
+        const addedNum = parseInt(String(item.added).trim());
+        if (!isNaN(addedNum) && addedNum > 0) {
+          return addedNum < 1e11 ? addedNum * 1000 : addedNum;
+        }
+      }
+      if (item._addedAt && typeof item._addedAt === 'number' && item._addedAt > 0) {
+        return item._addedAt;
+      }
+
+      // 2. Fallback dans le titre (dernière date/année mentionnée)
+      return extractDateFromTitle(item.name || item.title || '');
+    };
+
     if (sortOrder === 'date_desc' || sortOrder === 'date') {
-      items.sort((a, b) => {
-        const dateA = extractDateFromTitle(a.name) || a._addedAt || 0;
-        const dateB = extractDateFromTitle(b.name) || b._addedAt || 0;
-        return dateB - dateA;
-      });
+      items.sort((a, b) => getItemDate(b) - getItemDate(a));
     } else if (sortOrder === 'date_asc') {
-      items.sort((a, b) => {
-        const dateA = extractDateFromTitle(a.name) || a._addedAt || 0;
-        const dateB = extractDateFromTitle(b.name) || b._addedAt || 0;
-        return dateA - dateB;
-      });
+      items.sort((a, b) => getItemDate(a) - getItemDate(b));
     } else if (sortOrder === 'alpha_asc') {
       items.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     } else if (sortOrder === 'alpha_desc') {
@@ -229,13 +400,12 @@ function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItem
       items.sort((a, b) => {
         const rA = ratings[String(a.stream_id || a.series_id || a.id)]?.rating || 0;
         const rB = ratings[String(b.stream_id || b.series_id || b.id)]?.rating || 0;
-        return rB - rA; // desc, unrated at bottom
+        return rB - rA;
       });
     } else if (sortOrder === 'rating_asc') {
       items.sort((a, b) => {
         const rA = ratings[String(a.stream_id || a.series_id || a.id)]?.rating || 0;
         const rB = ratings[String(b.stream_id || b.series_id || b.id)]?.rating || 0;
-        // If unrated is 0, sorting asc will put unrated at the top. This is usually expected.
         return rA - rB;
       });
     }
@@ -247,7 +417,7 @@ function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItem
     if (idx !== -1) {
       let nextFocusKey = '';
       if (sortedItems.length === 1) {
-        nextFocusKey = `CAT_TITLE_${catId}`;
+        nextFocusKey = catIdx === 0 ? 'FIRST_FAV_TITLE' : `CAT_TITLE_${catId}`;
       } else if (idx < sortedItems.length - 1) {
         const nextIdx = idx + 1;
         const rightItem = sortedItems[nextIdx];
@@ -263,10 +433,43 @@ function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItem
       }
 
       removeItemFromCategory(catId, itemId);
-      setTimeout(() => setFocus(nextFocusKey), 150);
+      lastFocusedFavKey = nextFocusKey;
+      setTimeout(() => {
+        try {
+          setFocus(nextFocusKey);
+        } catch (e) {
+          setFocus(catIdx === 0 ? 'FIRST_FAV_TITLE' : `CAT_TITLE_${catId}`);
+        }
+      }, 150);
     } else {
       removeItemFromCategory(catId, itemId);
     }
+  };
+
+  const handleDissolveCategory = () => {
+    let nextKey = 'NAV_FAVORITES';
+    if (allCategories && allCategories.length > 1) {
+      if (catIdx === 0) {
+        nextKey = 'FIRST_FAV_TITLE';
+      } else if (catIdx < allCategories.length - 1) {
+        nextKey = `CAT_TITLE_${allCategories[catIdx + 1].id}`;
+      } else {
+        const prevIdx = catIdx - 1;
+        nextKey = prevIdx === 0 ? 'FIRST_FAV_TITLE' : `CAT_TITLE_${allCategories[prevIdx].id}`;
+      }
+    } else {
+      nextKey = 'CREATE_FIRST_CAT_BTN';
+    }
+
+    removeCategory(cat.id);
+    setTimeout(() => {
+      try {
+        setFocus(nextKey);
+        lastFocusedFavKey = nextKey;
+      } catch (e) {
+        setFocus('NAV_FAVORITES');
+      }
+    }, 100);
   };
 
   const handleMove = (catId: string, itemId: string, direction: 'left' | 'right') => {
@@ -293,11 +496,13 @@ function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItem
               <SortDropdown catId={cat.id} currentSort={cat.sortOrder} setSortOrder={setCategorySortOrder} blockUp={catIdx === 0} />
               <FocusableButton
                 blockUp={catIdx === 0}
-                onClick={() => moveCategory(cat.id, 'up')}
+                disabled={isFirstCat}
+                onClick={isFirstCat ? undefined : () => moveCategory(cat.id, 'up')}
                 icon={<svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 15l7-7 7 7" /></svg>} />
               <FocusableButton
                 blockUp={catIdx === 0}
-                onClick={() => moveCategory(cat.id, 'down')}
+                disabled={isLastCat}
+                onClick={isLastCat ? undefined : () => moveCategory(cat.id, 'down')}
                 icon={<svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>} />
             </div>
           </div>
@@ -305,7 +510,7 @@ function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItem
             <div className="flex space-x-2 animate-in fade-in zoom-in duration-200">
               <FocusableButton
                 blockUp={catIdx === 0}
-                onClick={() => removeCategory(cat.id)}
+                onClick={handleDissolveCategory}
                 label="Confirmer"
                 variant="danger"
               />
@@ -344,7 +549,7 @@ function FocusableCategory({ cat, catIdx, moveCategory, removeCategory, moveItem
       </section>
     </FocusContext.Provider>
   );
-}
+});
 
 // ─── Category Title ──────────────────────────────────────────────────────────
 
@@ -370,10 +575,6 @@ function FocusableCategoryTitle({ cat, onRename, blockUp }: any) {
     onEnterPress: handleRenameClick,
     onArrowPress: (direction) => {
       if (blockUp && direction === 'up') return false;
-      // The category title sits at the far-left edge of the row: the spatial
-      // navigation algorithm has nothing to its left inside MAIN_CONTENT, so
-      // returning `true` here (asking the parent to handle it) silently drops
-      // focus instead of bubbling to the sidebar. Handle it explicitly.
       if (direction === 'left') {
         setFocus('NAV_FAVORITES');
         return false;
@@ -383,7 +584,6 @@ function FocusableCategoryTitle({ cat, onRename, blockUp }: any) {
     onFocus: () => {
       lastFocusedFavKey = focusKey;
       if (blockUp) {
-        // Le titre de la 1ère catégorie est focus : on remonte tout en haut pour voir "MES COLLECTIONS."
         setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50);
       }
     }
@@ -424,47 +624,42 @@ function FocusableCategoryTitle({ cat, onRename, blockUp }: any) {
 
 // ─── Utility button ───────────────────────────────────────────────────────────
 
-function FocusableButton({ onClick, icon, label, variant, focusKey: customFocusKey, blockUp }: any) {
+function FocusableButton({ onClick, icon, label, variant, focusKey: customFocusKey, blockUp, disabled }: any) {
   const { ref, focused, focusKey } = useFocusable({
+    focusable: !disabled,
     focusKey: customFocusKey,
-    onEnterPress: onClick,
+    onEnterPress: disabled ? undefined : onClick,
     onArrowPress: (direction) => {
       if (blockUp && direction === 'up') return false;
       return true;
     },
   });
   return (
-    <button ref={ref} onClick={onClick}
-      onMouseEnter={() => { if (isMouseMode) setFocus(focusKey); }}
-      className={`outline-none
+    <button ref={ref} onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      onMouseEnter={() => { if (isMouseMode && !disabled) setFocus(focusKey); }}
+      className={`outline-none transition-all
         ${label ? 'px-4 py-2 rounded-sm' : 'w-10 h-10 flex items-center justify-center border rounded-full'}
-        ${focused
-          ? 'bg-white text-black scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)] border-white'
-          : variant === 'danger' ? 'text-red-900/40 border-transparent' : 'text-[#b5924d] border-white/10'}`}>
+        ${disabled
+          ? 'opacity-20 cursor-not-allowed text-gray-500 border-white/5'
+          : focused
+            ? 'bg-white text-black scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)] border-white'
+            : variant === 'danger' ? 'text-red-900/40 border-transparent hover:text-red-500 hover:border-red-500/20' : 'text-[#b5924d] border-white/10 hover:border-[#b5924d]/40'}`}>
       {label ? <span className="text-[9px] font-bold uppercase tracking-[0.4em]">{label}</span> : icon}
     </button>
   );
 }
 
 // ─── Favorite Card ───────────────────────────────────────────────────────────
-// ARCHITECTURE:
-//   - The wrapper has useFocusable to anchor the FocusContext for children.
-//   - Visual state (border + overlay) is driven by local `active` state.
-//   - `active` is set to true by children's onFocus callbacks (setState only, never setFocus).
-//   - `active` is set to false by children's onBlur callbacks.
-//   - Mouse enter/leave on the wrapper also sets `active` + calls setFocus on the image.
 
-function FocusableFavoriteCard({ item, catId, isFirstItem, onPlay, onRemove, onMove }: any) {
+const FocusableFavoriteCard = React.memo(function FocusableFavoriteCard({ item, catId, isFirstItem, onPlay, onRemove, onMove }: any) {
   const id = item.stream_id || item.series_id || item.id;
   const uniqueId = `${catId}_${id}`;
   const isChannel = item.stream_type === 'live' || (!item.series_id && !item.container_extension && item.type !== 'series' && item.type !== 'movie');
   const [active, setActive] = useState(false);
-  const hoverTimeout = React.useRef<any>(null);
 
   const imgKey = isFirstItem ? 'FIRST_FAV_ITEM' : `IMG_${uniqueId}`;
 
-  // Wrapper gives us the focusKey context for children — but we DON'T use its `focused`
-  // because the actual spatial focus lands on IMG_${uniqueId}, not on CARD_${uniqueId}.
   const { ref: wrapRef, focusKey } = useFocusable({
     focusKey: `CARD_${uniqueId}`,
     preferredChildFocusKey: imgKey,
@@ -473,9 +668,42 @@ function FocusableFavoriteCard({ item, catId, isFirstItem, onPlay, onRemove, onM
   const activate = () => setActive(true);
   const deactivate = () => setActive(false);
 
+  useEffect(() => {
+    if (!active) return;
+
+    const handleCardKeyDown = (e: KeyboardEvent) => {
+      const isBackKey =
+        e.key === 'Escape' ||
+        e.key === 'Backspace' ||
+        e.key === 'GoBack' ||
+        e.key === 'Return' ||
+        e.keyCode === 10009 || // Tizen Return
+        e.keyCode === 461 ||   // webOS Back
+        e.keyCode === 4 ||     // Android Back
+        e.which === 10009 ||
+        e.which === 461 ||
+        e.which === 4;
+
+      if (isBackKey) {
+        const activeEl = document.activeElement;
+        if (wrapRef.current && activeEl && wrapRef.current.contains(activeEl)) {
+          const isActionBtn = activeEl.closest('[data-action-bar]');
+          if (isActionBtn) {
+            e.stopPropagation();
+            e.preventDefault();
+            setFocus(imgKey);
+            lastFocusedFavKey = imgKey;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleCardKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleCardKeyDown, { capture: true });
+  }, [active, imgKey]);
+
   return (
     <FocusContext.Provider value={focusKey}>
-      {/* Outer wrapper: flex-col so image + buttons stack vertically */}
       <div
         ref={wrapRef}
         onMouseEnter={(e: any) => {
@@ -494,19 +722,25 @@ function FocusableFavoriteCard({ item, catId, isFirstItem, onPlay, onRemove, onM
             ? 'border-[#b5924d] scale-105 z-50 shadow-[0_0_50px_rgba(181,146,77,0.5)]'
             : 'border-transparent'}`}
       >
-        {/* Image fills the aspect ratio */}
         <div className={`relative overflow-hidden bg-black ring-1 ring-white/10 rounded-sm ${isChannel ? 'aspect-square' : 'aspect-[3/4.5]'}`}>
           <FocusableCardImage
             id={id} item={item} isChannel={isChannel}
-            onClick={() => onPlay(item)}
+            onClick={() => {
+              lastFocusedFavKey = imgKey;
+              (window as any).__lastFavClickedItem = imgKey;
+              try {
+                sessionStorage.setItem('fav_clicked_key', imgKey);
+              } catch (e) {}
+              onPlay(item);
+            }}
             onFocus={activate}
             onBlur={deactivate}
             customFocusKey={imgKey}
           />
         </div>
 
-        {/* Action bar — asymmetric transitions: opens smoothly, closes visually instantly but delays layout collapse to prevent grid bouncing */}
         <div 
+          data-action-bar="true"
           className={`flex items-center justify-around bg-black/95 backdrop-blur-xl border-t overflow-hidden ${active ? 'border-[#b5924d]/30' : 'pointer-events-none border-transparent'}`}
           style={{
              maxHeight: active ? '80px' : '0px',
@@ -528,11 +762,11 @@ function FocusableFavoriteCard({ item, catId, isFirstItem, onPlay, onRemove, onM
       </div>
     </FocusContext.Provider>
   );
-}
+});
 
 // ─── Card image ───────────────────────────────────────────────────────────────
 
-function FocusableCardImage({ id, item, isChannel, onClick, onFocus, onBlur, customFocusKey }: any) {
+const FocusableCardImage = React.memo(function FocusableCardImage({ id, item, isChannel, onClick, onFocus, onBlur, customFocusKey }: any) {
   const rating = useRatingStore(state => {
     const profileId = useProfileStore.getState().activeProfile?.id || 'default';
     return state.ratings[profileId]?.[String(item.stream_id || item.series_id || item.id)]?.rating;
@@ -558,7 +792,6 @@ function FocusableCardImage({ id, item, isChannel, onClick, onFocus, onBlur, cus
       }
       return true;
     },
-    // Only setState — never call setFocus here to avoid loops
     onFocus: () => {
       lastFocusedFavKey = focusKey;
       onFocus();
@@ -570,10 +803,20 @@ function FocusableCardImage({ id, item, isChannel, onClick, onFocus, onBlur, cus
   });
 
   return (
-    <div ref={ref} onClick={onClick}
+    <div ref={ref} 
+      onClick={() => {
+        lastFocusedFavKey = focusKey;
+        (window as any).__lastFavClickedItem = focusKey;
+        try {
+          sessionStorage.setItem('fav_clicked_key', focusKey);
+        } catch (e) {}
+        onClick();
+      }}
       onMouseEnter={() => { if (isMouseMode) setFocus(focusKey); }}
       className="w-full h-full relative cursor-pointer">
       <img
+        loading="lazy"
+        decoding="async"
         src={item.stream_icon || item.cover || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%23111'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='20' fill='%23555'%3ENo Image%3C/text%3E%3C/svg%3E"}
         onError={(e) => {
           const fallback = isChannel
@@ -600,21 +843,16 @@ function FocusableCardImage({ id, item, isChannel, onClick, onFocus, onBlur, cus
       </div>
     </div>
   );
-}
+});
 
 // ─── Action button ────────────────────────────────────────────────────────────
 
-function ActionBtn({ focusKey: fk, onClick, icon, danger, onFocus, onBlur, exitLeftToSidebar, focusable = true }: any) {
+const ActionBtn = React.memo(function ActionBtn({ focusKey: fk, onClick, icon, danger, onFocus, onBlur, exitLeftToSidebar, focusable = true }: any) {
   const { ref, focused, focusKey } = useFocusable({
     focusable,
     focusKey: fk,
     onEnterPress: onClick,
     onArrowPress: (direction) => {
-      // This button sits at the left edge of the action bar (closest to the
-      // sidebar). Just like the category title and the card image, relying on
-      // bubbling through the nested FocusContext.Providers (CARD_ -> section ->
-      // MAIN_CONTENT) drops focus instead of reaching MAIN_CONTENT's handler.
-      // Hand off explicitly instead.
       if (exitLeftToSidebar && direction === 'left') {
         const grid = ref.current?.closest('.grid');
         if (grid && ref.current) {
@@ -631,7 +869,6 @@ function ActionBtn({ focusKey: fk, onClick, icon, danger, onFocus, onBlur, exitL
       }
       return true;
     },
-    // Only setState — never call setFocus here to avoid loops
     onFocus,
     onBlur,
   });
@@ -646,7 +883,7 @@ function ActionBtn({ focusKey: fk, onClick, icon, danger, onFocus, onBlur, exitL
       {icon}
     </button>
   );
-}
+});
 
 // ─── Sort dropdown ────────────────────────────────────────────────────────────
 

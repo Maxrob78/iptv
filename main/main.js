@@ -418,7 +418,36 @@ function createWindow() {
     currentMpvProcess = mpvProcess;
     isLaunchingMpv = false; // Le processus est lancé, on débloque
 
-    mpvProcess.stderr.on('data', (d) => console.log(`[MPV ERROR] ${d}`));
+    let hasSentError = false;
+    let hasPlayedSuccessfully = false;
+
+    const notifyMpvError = (errorMsg) => {
+      if (hasSentError) return;
+      hasSentError = true;
+      console.error(`[LECTURE MPV ÉCHEC] ${errorMsg}`);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('mpv-status', { 
+          streamId, 
+          status: 'error', 
+          error: errorMsg || 'Impossible de charger le fichier vidéo' 
+        });
+      }
+      broadcast({ type: 'status', playerActive: false, paused: false, error: errorMsg });
+    };
+
+    mpvProcess.stderr.on('data', (d) => {
+      const msg = d.toString();
+      console.log(`[MPV ERROR] ${msg}`);
+      if (
+        msg.includes('Errors when loading file') || 
+        msg.includes('Failed to open') || 
+        msg.includes('Cannot open file') || 
+        msg.includes('error when loading file') ||
+        msg.includes('Failed to recognize file format')
+      ) {
+        notifyMpvError('Erreur lors du chargement du fichier (flux inaccessible ou codec incompatible)');
+      }
+    });
     mpvProcess.stdout.on('data', (d) => console.log(`[MPV LOG] ${d}`));
 
     mpvProcess.unref();
@@ -458,15 +487,21 @@ function createWindow() {
 
                     // Gestion de la fin de fichier
                     if (json.event === "end-file") {
-                      mainWindow.webContents.send('mpv-status', { streamId, status: 'completed' });
+                      if (json.reason === "error") {
+                        notifyMpvError(json.file_error ? `Erreur MPV: ${json.file_error}` : 'Échec de lecture du fichier vidéo');
+                      } else if (json.reason === "eof") {
+                        mainWindow.webContents.send('mpv-status', { streamId, status: 'completed' });
+                      }
                     }
 
                     // Gestion des réponses aux propriétés
                     if (json.request_id === 1 && json.data !== undefined) {
                       lastPos = json.data;
+                      if (lastPos > 0) hasPlayedSuccessfully = true;
                     }
                     if (json.request_id === 2 && json.data !== undefined) {
                       lastDuration = json.data;
+                      if (lastDuration > 0) hasPlayedSuccessfully = true;
                     }
                     if (json.request_id === 3 && json.data !== undefined) {
                         // On envoie la liste des pistes audio/sous-titres
@@ -501,6 +536,9 @@ function createWindow() {
     }, 1500);
 
     mpvProcess.on('close', (code) => {
+      if (!hasPlayedSuccessfully && (code !== 0 || hasSentError)) {
+        notifyMpvError('Le lecteur a échoué à charger le flux (fermeture prématurée)');
+      }
       mainWindow.webContents.send('mpv-status', { streamId, status: 'closed' });
       activeMpvClient = null; // Reset le client quand MPV ferme
       currentMpvProcess = null;

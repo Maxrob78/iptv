@@ -17,6 +17,7 @@ export default function SeriesDetail() {
   const { id } = router.query;
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
   const [playbackHistory, setPlaybackHistory] = useState<any>({});
   const [showRating, setShowRating] = useState(false);
@@ -30,8 +31,39 @@ export default function SeriesDetail() {
         setFocus('BACK_BTN');
         focusSet.current = true;
       }, 300);
+    } else if (loading) {
+      setTimeout(() => {
+        setFocus('SERIES_LOADING_CANCEL');
+      }, 100);
+    } else if (loadError) {
+      setTimeout(() => {
+        setFocus('SERIES_ERROR_BACK');
+      }, 100);
     }
-  }, [loading, data]);
+  }, [loading, data, loadError]);
+
+  // Écouteur direct des touches retour pendant le chargement ou l'erreur
+  useEffect(() => {
+    const handleBackDuringLoading = (e: KeyboardEvent) => {
+      const isBack = 
+        e.key === 'Escape' || 
+        e.key === 'Backspace' || 
+        e.key === 'GoBack' || 
+        e.key === 'Return' || 
+        e.keyCode === 10009 || 
+        e.keyCode === 461 || 
+        e.keyCode === 4 ||
+        e.which === 10009 ||
+        e.which === 461 ||
+        e.which === 4;
+
+      if (isBack && (loading || loadError || !data || !data.info)) {
+        router.back();
+      }
+    };
+    window.addEventListener('keydown', handleBackDuringLoading);
+    return () => window.removeEventListener('keydown', handleBackDuringLoading);
+  }, [loading, loadError, data, router]);
 
   const { getProfileData } = useDataStore();
   const { localLibrary } = getProfileData();
@@ -83,6 +115,9 @@ export default function SeriesDetail() {
         });
 
         const removeStatus = (window as any).electronAPI.on('mpv-status', (data: any) => {
+            if (data.status === 'error') {
+                setLaunchingVideo(null);
+            }
             if (data.status === 'completed') {
                 const activeId = useProfileStore.getState().activeProfile?.id;
                 const key = activeId ? `iptv_playback_history_${activeId}` : 'iptv_playback_history';
@@ -136,10 +171,27 @@ export default function SeriesDetail() {
     }
 
     const fetchData = async () => {
+      setLoading(true);
+      setLoadError(null);
+
+      let isTimedOut = false;
+      const timeoutId = setTimeout(() => {
+        isTimedOut = true;
+        setLoadError("Le serveur IPTV met trop de temps à répondre (Délai d'attente dépassé).");
+        setLoading(false);
+      }, 12000);
+
       try {
-        setLoading(true);
         const seriesInfo = await xtreamApi.getSeriesInfo(Number(id));
+        if (isTimedOut) return;
+        clearTimeout(timeoutId);
+
+        if (!seriesInfo || !seriesInfo.info) {
+          throw new Error("Fiche introuvable ou métadonnées manquantes pour cette série.");
+        }
+
         setData(seriesInfo);
+        setLoadError(null);
         
         let initialSeason = "";
         if (seriesInfo.seasons && seriesInfo.seasons.length > 0) {
@@ -157,9 +209,13 @@ export default function SeriesDetail() {
         }
 
         setSelectedSeason(initialSeason || (seriesInfo.seasons?.[0]?.season_number?.toString()) || "1");
-      } catch (err) {
+      } catch (err: any) {
+        if (isTimedOut) return;
+        clearTimeout(timeoutId);
         console.error("Erreur de récupération des détails de la série", err);
+        setLoadError(err.message || "Impossible de charger les détails de la série auprès du serveur.");
       } finally {
+        clearTimeout(timeoutId);
         setLoading(false);
       }
     };
@@ -205,14 +261,95 @@ export default function SeriesDetail() {
     }
   }, [loading, data, id]);
 
-  if (loading || !data || !data.info) return (
-    <div className="flex-1 flex bg-[#050505] text-white">
-      <Sidebar />
-      <div className="ml-20 lg:ml-72 3xl:ml-96 flex-1 flex items-center justify-center">
-        <p className="text-[10px] uppercase font-bold tracking-[0.5em] animate-pulse text-[#b5924d]">Accès au Registre...</p>
+  if (loading) {
+    return (
+      <div className="flex-1 flex bg-[#050505] text-white min-h-screen font-['Inter']">
+        <Sidebar />
+        <FocusContext.Provider value="SERIES_LOADING_ROOT">
+          <div className="ml-20 lg:ml-72 3xl:ml-96 flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
+            <div className="relative w-24 h-24 mb-8 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full border border-transparent border-t-[#b5924d] border-r-[#b5924d]/40 animate-spin" />
+              <div className="w-12 h-12 rounded-2xl bg-[#b5924d]/10 border border-[#b5924d]/30 flex items-center justify-center shadow-[0_0_30px_rgba(181,146,77,0.2)]">
+                <span className="text-xl font-serif italic text-[#b5924d]">P</span>
+              </div>
+            </div>
+
+            <h3 className="text-[11px] font-bold uppercase tracking-[0.6em] text-[#b5924d] mb-3 animate-pulse">
+              Accès au Registre...
+            </h3>
+            <p className="text-[9px] uppercase tracking-[0.3em] text-white/30 max-w-sm leading-relaxed mb-10">
+              Connexion au serveur IPTV et indexation des saisons
+            </p>
+
+            <FocusableActionBtn focusKey="SERIES_LOADING_CANCEL" onClick={() => router.back()}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span>Annuler et quitter (Retour)</span>
+            </FocusableActionBtn>
+
+            <p className="mt-8 text-[8px] uppercase tracking-widest text-white/20">
+              Appuyez sur Retour / Échap à tout moment pour partir
+            </p>
+          </div>
+        </FocusContext.Provider>
       </div>
-    </div>
-  );
+    );
+  }
+
+  if (loadError || !data || !data.info) {
+    return (
+      <div className="flex-1 flex bg-[#050505] text-white min-h-screen font-['Inter']">
+        <Sidebar />
+        <FocusContext.Provider value="SERIES_ERROR_ROOT">
+          <div className="ml-20 lg:ml-72 3xl:ml-96 flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
+            <div className="w-20 h-20 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 mb-8 shadow-[0_0_40px_rgba(239,68,68,0.2)]">
+              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+
+            <h3 className="text-[13px] font-bold uppercase tracking-[0.5em] text-white mb-3">
+              Défaut d'accès au Registre Série
+            </h3>
+            <p className="text-[10px] text-gray-400 font-light max-w-md leading-relaxed mb-10">
+              {loadError || "Impossible de récupérer les saisons et épisodes de cette série."}
+            </p>
+
+            <div className="flex items-center space-x-4">
+              <FocusableActionBtn focusKey="SERIES_ERROR_BACK" onClick={() => router.back()} primary={true}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                <span>Revenir à la liste</span>
+              </FocusableActionBtn>
+              
+              <FocusableActionBtn 
+                focusKey="SERIES_ERROR_RETRY" 
+                onClick={() => {
+                  setLoadError(null);
+                  setLoading(true);
+                  xtreamApi.getSeriesInfo(Number(id))
+                    .then(seriesInfo => {
+                      if (!seriesInfo || !seriesInfo.info) throw new Error("Fiche introuvable");
+                      setData(seriesInfo);
+                      setLoadError(null);
+                    })
+                    .catch(e => setLoadError(e.message || "Erreur de connexion"))
+                    .finally(() => setLoading(false));
+                }}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Réessayer</span>
+              </FocusableActionBtn>
+            </div>
+          </div>
+        </FocusContext.Provider>
+      </div>
+    );
+  }
 
   const episodes = selectedSeason ? data.episodes[selectedSeason] : [];
 
@@ -825,6 +962,27 @@ function ActorBadge({ name, role, onClick, sidebarFocusKey }: { name: string, ro
     >
       <span className="font-medium">{name}</span>
       {role && <span className="text-[9px] uppercase tracking-wider opacity-70 mt-0.5">{role}</span>}
+    </button>
+  );
+}
+
+function FocusableActionBtn({ focusKey, onClick, children, primary = false, className = '' }: any) {
+  const { ref, focused } = useFocusable({
+    focusKey,
+    onEnterPress: onClick
+  });
+
+  return (
+    <button
+      ref={ref}
+      onClick={onClick}
+      className={`px-8 py-4 rounded-xl font-bold uppercase text-[10px] tracking-[0.3em] transition-all duration-300 flex items-center justify-center space-x-3
+        ${focused 
+          ? (primary ? 'bg-[#b5924d] text-black scale-105 shadow-[0_0_30px_rgba(181,146,77,0.5)] border-[#b5924d]' : 'bg-white text-black scale-105 shadow-[0_0_30px_rgba(255,255,255,0.4)] border-white') 
+          : (primary ? 'bg-[#b5924d]/20 text-[#b5924d] border border-[#b5924d]/30 hover:bg-[#b5924d]/30' : 'bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 hover:text-white')
+        } ${className}`}
+    >
+      {children}
     </button>
   );
 }

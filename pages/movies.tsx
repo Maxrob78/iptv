@@ -37,7 +37,7 @@ export default function Movies() {
     setPlaybackHistory(history);
 
     if ((window as any).electronAPI && (window as any).electronAPI.on) {
-      return (window as any).electronAPI.on('mpv-progress', (data: any) => {
+      const unsubProgress = (window as any).electronAPI.on('mpv-progress', (data: any) => {
         const activeId = useProfileStore.getState().activeProfile?.id;
         const key = activeId ? `iptv_playback_history_${activeId}` : 'iptv_playback_history';
         const currentHistory = JSON.parse(localStorage.getItem(key) || '{}');
@@ -51,6 +51,17 @@ export default function Movies() {
           setPlaybackHistory(currentHistory);
         }
       });
+
+      const unsubStatus = (window as any).electronAPI.on('mpv-status', (data: any) => {
+        if (data && (data.status === 'error' || data.status === 'closed')) {
+          setLaunchingVideo(null);
+        }
+      });
+
+      return () => {
+        unsubProgress();
+        unsubStatus();
+      };
     }
   }, []);
 

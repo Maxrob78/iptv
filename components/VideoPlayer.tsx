@@ -4,7 +4,7 @@ import Hls from 'hls.js';
 import mpegts from 'mpegts.js';
 
 export const VideoPlayer = (props: any) => {
-  const { options, onReady } = props;
+  const { options, onReady, onError } = props;
   const artRef = useRef<HTMLDivElement>(null);
   const playerInstance = useRef<Artplayer | null>(null);
   
@@ -58,15 +58,20 @@ export const VideoPlayer = (props: any) => {
                   isDisposed: () => false,
                   requestFullscreen: () => {},
                   exitFullscreen: () => {},
+                  error: () => null,
                   on: (ev: string, cb: any) => {}
                 });
               }
             });
           },
-          (err: any) => console.error("AVPlay Error", err)
+          (err: any) => {
+            console.error("AVPlay Error", err);
+            if (onError) onError(err);
+          }
         );
       } catch (e) {
         console.error("AVPlay Exception", e);
+        if (onError) onError(e);
       }
       
       return () => {
@@ -94,6 +99,13 @@ export const VideoPlayer = (props: any) => {
             hls.loadSource(url);
             hls.attachMedia(video);
             art.hls = hls;
+
+            hls.on(Hls.Events.ERROR, (event, data) => {
+              if (data.fatal) {
+                console.error("HLS Fatal Error:", data);
+                if (onError) onError(data);
+              }
+            });
           }
         },
         ts: function (video: HTMLVideoElement, url: string) {
@@ -102,12 +114,27 @@ export const VideoPlayer = (props: any) => {
             const mpegtsPlayer = mpegts.createPlayer({ type: 'mpegts', isLive: true, url: url });
             mpegtsPlayer.attachMediaElement(video);
             mpegtsPlayer.load();
+
+            mpegtsPlayer.on(mpegts.Events.ERROR, (errorType: any, errorDetail: any, errorInfo: any) => {
+              console.error("MPEGTS Error:", errorType, errorDetail, errorInfo);
+              if (onError) onError({ errorType, errorDetail, errorInfo });
+            });
           }
         }
       },
     });
 
     playerInstance.current = art;
+
+    art.on('error', (err: any) => {
+      console.error("Artplayer Error:", err);
+      if (onError) onError(err);
+    });
+
+    art.on('video:error', (err: any) => {
+      console.error("Video Element Error:", err);
+      if (onError) onError(err);
+    });
 
     art.on('video:timeupdate', () => {
       setCurrentTime(art.currentTime);

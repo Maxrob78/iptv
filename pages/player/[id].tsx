@@ -96,6 +96,30 @@ export default function StreamPlayer() {
     const handleKeyDown = (e: KeyboardEvent) => {
       setUserActive(true); // Réveiller l'interface sur n'importe quelle touche
       
+      const isBackKey = 
+        e.key === 'Escape' || 
+        e.key === 'Backspace' || 
+        e.key === 'GoBack' || 
+        e.key === 'Return' || 
+        e.keyCode === 10009 || 
+        e.keyCode === 461 || 
+        e.keyCode === 4 ||
+        e.which === 10009 ||
+        e.which === 461 ||
+        e.which === 4;
+
+      if (isBackKey) {
+        if (showRating) setShowRating(false);
+        else if (showOptions) setShowOptions(false);
+        else if (playerError) {
+          setPlayerError(false);
+          router.back();
+        } else {
+          router.back();
+        }
+        return;
+      }
+
       if (!playerRef.current) return;
 
       switch(e.key) {
@@ -115,19 +139,12 @@ export default function StreamPlayer() {
         case 'ArrowDown':
           setShowOptions(false);
           break;
-        case 'Escape':
-        case 'Backspace':
-          // Sur Tizen, 'Backspace' est souvent le bouton Retour
-          if (showRating) setShowRating(false);
-          else if (showOptions) setShowOptions(false);
-          else router.back();
-          break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showOptions, showRating, router]);
+  }, [showOptions, showRating, playerError, router]);
 
   useEffect(() => {
     if (extension) setExt(extension as string);
@@ -213,10 +230,7 @@ export default function StreamPlayer() {
     player.on('play', () => { setIsPlaying(true); setPlayerError(false); });
     player.on('pause', () => setIsPlaying(false));
     player.on('error', () => {
-      const error = player.error();
-      if (error && (error.code === 3 || error.code === 4)) {
-        setPlayerError(true);
-      }
+      setPlayerError(true);
     });
   };
 
@@ -497,7 +511,14 @@ export default function StreamPlayer() {
         )}
       </div>
 
-      <VideoPlayer options={videoJsOptions} onReady={handlePlayerReady} />
+      <VideoPlayer 
+        options={videoJsOptions} 
+        onReady={handlePlayerReady} 
+        onError={(err: any) => {
+          console.error("VideoPlayer reported error:", err);
+          setPlayerError(true);
+        }}
+      />
 
       {showRating && (
         <RatingModal 
