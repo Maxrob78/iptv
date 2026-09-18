@@ -54,6 +54,7 @@ interface DataState {
 
   toggleFavorite: (item: any) => void;
   isFavorite: (id: string | number) => boolean;
+  updateItemCover: (id: string | number, coverUrl: string) => void;
 
   // Méthodes Categories (Profil dépendant)
   addCategory: (name: string) => void;
@@ -248,6 +249,36 @@ export const useDataStore = create<DataState>()(
         );
       },
 
+      updateItemCover: (id, coverUrl) => {
+        if (!coverUrl) return;
+        const strId = String(id);
+        const movies = get().movies;
+        const movieIndex = movies.findIndex(m => String(m.stream_id || m.id) === strId);
+        if (movieIndex !== -1 && (!movies[movieIndex].stream_icon || movies[movieIndex].stream_icon !== coverUrl)) {
+          const updatedMovies = [...movies];
+          updatedMovies[movieIndex] = {
+            ...updatedMovies[movieIndex],
+            stream_icon: coverUrl,
+            cover: coverUrl
+          };
+          set({ movies: updatedMovies });
+          writeHeavyKeyDeferred(HEAVY_KEYS.movies, updatedMovies);
+          return;
+        }
+        const series = get().series;
+        const seriesIndex = series.findIndex(s => String(s.series_id || s.id) === strId);
+        if (seriesIndex !== -1 && (!series[seriesIndex].cover || series[seriesIndex].cover !== coverUrl)) {
+          const updatedSeries = [...series];
+          updatedSeries[seriesIndex] = {
+            ...updatedSeries[seriesIndex],
+            cover: coverUrl,
+            stream_icon: coverUrl
+          };
+          set({ series: updatedSeries });
+          writeHeavyKeyDeferred(HEAVY_KEYS.series, updatedSeries);
+        }
+      },
+
       addCategory: (name) => {
         const activeProfileId = useProfileStore.getState().activeProfile?.id;
         if (!activeProfileId) return;
@@ -350,18 +381,25 @@ export const useDataStore = create<DataState>()(
         if (!activeProfileId) return;
 
         const currentData = get().getProfileData();
+        const strId = String(itemId);
         const newCategories = currentData.favoriteCategories.map(cat => {
           if (cat.id === categoryId) {
-            const strId = String(itemId);
             return { ...cat, items: cat.items.filter(i => String(i.stream_id || i.series_id || i.id) !== strId) };
           }
           return cat;
         });
 
+        const stillInAnyCategory = newCategories.some(cat =>
+          cat.items.some(i => String(i.stream_id || i.series_id || i.id) === strId)
+        );
+        const newFavorites = stillInAnyCategory
+          ? currentData.favorites
+          : currentData.favorites.filter(f => String(f.stream_id || f.series_id || f.id) !== strId);
+
         set({
           profilesData: {
             ...get().profilesData,
-            [activeProfileId]: { ...currentData, favoriteCategories: newCategories }
+            [activeProfileId]: { ...currentData, favoriteCategories: newCategories, favorites: newFavorites }
           }
         });
       },

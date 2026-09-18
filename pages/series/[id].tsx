@@ -192,6 +192,11 @@ export default function SeriesDetail() {
 
         setData(seriesInfo);
         setLoadError(null);
+
+        const seriesCover = seriesInfo.info?.cover || seriesInfo.info?.movie_image;
+        if (seriesCover) {
+          useDataStore.getState().updateItemCover(id as string, seriesCover);
+        }
         
         let initialSeason = "";
         if (seriesInfo.seasons && seriesInfo.seasons.length > 0) {
@@ -861,8 +866,8 @@ function FavoriteDetailsButton({ item }: { item: any }) {
           }
         }}
         className={`w-14 h-14 rounded-full flex items-center justify-center text-xl transition-all duration-300 border
-                   ${focused ? 'bg-white text-black border-white scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]' : 'border-white/20 text-white hover:bg-white/10'}`}
-        title="Ajouter aux favoris"
+                   ${focused ? (isFavorited ? 'bg-netflix-red text-white border-netflix-red scale-110 shadow-[0_0_20px_rgba(229,9,20,0.4)]' : 'bg-white text-black border-white scale-110 shadow-[0_0_20px_rgba(255,255,255,0.4)]') : (isFavorited ? 'border-netflix-red/40 text-netflix-red bg-netflix-red/10 hover:bg-netflix-red/20' : 'border-white/20 text-white hover:bg-white/10')}`}
+        title={isFavorited ? "Gérer les favoris / Noter" : "Ajouter aux favoris"}
       >
         <svg className="w-5 h-5" fill={isFavorited ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />

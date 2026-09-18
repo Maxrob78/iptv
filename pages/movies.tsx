@@ -14,7 +14,7 @@ let lastFocusedMovieKey: string | null = null;
 
 export default function Movies() {
   const router = useRouter();
-  const { movies, setMovies, checkAndClearCache, hydrateHeavyData } = useDataStore();
+  const { movies, setMovies, checkAndClearCache, hydrateHeavyData, getProfileData } = useDataStore();
   const [loading, setLoading] = useState(movies.length === 0);
   const [launchingVideo, setLaunchingVideo] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -24,6 +24,7 @@ export default function Movies() {
 
   const { ref, focusKey } = useFocusable({
     focusKey: 'MAIN_CONTENT',
+    preferredChildFocusKey: 'MOVIE_SEARCH',
     saveLastFocusedChild: true,
     trackChildren: true
   });
@@ -92,13 +93,25 @@ export default function Movies() {
 
   useEffect(() => {
     checkAndClearCache();
-    setTimeout(() => {
-      if (lastFocusedMovieKey) {
-        setFocus(lastFocusedMovieKey);
-      } else {
-        setFocus('MOVIE_SEARCH');
+    const prevRoute = (window as any).__previousRoute || (typeof window !== 'undefined' ? sessionStorage.getItem('__previousRoute') : null);
+    const isFromDetail = prevRoute === '/movie/[id]' || prevRoute === '/player/[id]' ||
+      (typeof prevRoute === 'string' && (prevRoute.startsWith('/movie/') || prevRoute.startsWith('/player/')));
+
+    if (!isFromDetail) {
+      lastFocusedMovieKey = null;
+    }
+
+    const targetKey = (isFromDetail && lastFocusedMovieKey) ? lastFocusedMovieKey : 'MOVIE_SEARCH';
+
+    const tryFocus = () => {
+      try {
+        setFocus(targetKey);
+      } catch (e) {
+        try { setFocus('MOVIE_SEARCH'); } catch (err) {}
       }
-    }, 200);
+    };
+
+    const timers = [50, 150, 300, 500].map(d => setTimeout(tryFocus, d));
 
     const fetchData = async () => {
       // 1. On tente d'abord de recharger depuis le cache disque (IndexedDB),
@@ -128,8 +141,35 @@ export default function Movies() {
       }
     };
     fetchData();
+
+    return () => timers.forEach(t => clearTimeout(t));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const profileData = getProfileData();
+  const { knownCovers, knownCoversByName } = useMemo(() => {
+    const idMap = new Map<string, string>();
+    const nameMap = new Map<string, string>();
+
+    const record = (item: any) => {
+      if (!item) return;
+      const cover = item.cover || item.stream_icon || item.movie_image;
+      if (!cover) return;
+      const id = item.stream_id || item.series_id || item.id;
+      if (id) idMap.set(String(id), cover);
+      if (item.name) {
+        nameMap.set(item.name.toLowerCase().trim(), cover);
+      }
+    };
+
+    (profileData.favorites || []).forEach(record);
+    (profileData.favoriteCategories || []).forEach((cat: any) => {
+      (cat.items || []).forEach(record);
+    });
+    (profileData.localLibrary || []).forEach(record);
+
+    return { knownCovers: idMap, knownCoversByName: nameMap };
+  }, [profileData]);
 
   const filteredMovies = useMemo(() => {
     if (!debouncedSearch) return movies.slice(0, renderLimit);
@@ -147,16 +187,21 @@ export default function Movies() {
   // Hook toujours appelé au même niveau (jamais dans un ternaire) :
   // corrige la violation des Rules of Hooks de la version précédente.
   const movieCards = useMemo(() => (
-    filteredMovies.map((vid, idx) => (
-      <FocusableMovie
-        key={vid.stream_id}
-        vid={vid}
-        idx={idx}
-        onClick={handlePlayMovie}
-        onLongPress={(item: any) => setFavModalItem(item)}
-      />
-    ))
-  ), [filteredMovies, handlePlayMovie]);
+    filteredMovies.map((vid, idx) => {
+      const vidId = String(vid.stream_id || vid.id);
+      const fallbackCover = knownCovers.get(vidId) || (vid.name ? knownCoversByName.get(vid.name.toLowerCase().trim()) : undefined);
+      return (
+        <FocusableMovie
+          key={vid.stream_id || idx}
+          vid={vid}
+          idx={idx}
+          fallbackCover={fallbackCover}
+          onClick={handlePlayMovie}
+          onLongPress={(item: any) => setFavModalItem(item)}
+        />
+      );
+    })
+  ), [filteredMovies, handlePlayMovie, knownCovers, knownCoversByName]);
 
   return (
     <div className="flex-1 flex bg-[#050505] min-h-screen text-white font-['Inter'] selection:bg-[#b5924d]/30">
@@ -285,6 +330,16 @@ function FocusableInput({ value, onChange, placeholder, containerRef }: any) {
             e.currentTarget.blur();
             return;
           }
+          if (e.key === 'ArrowLeft') {
+            const input = e.currentTarget;
+            if (input.selectionStart === 0 && input.selectionEnd === 0) {
+              e.preventDefault();
+              e.stopPropagation();
+              input.blur();
+              setFocus('NAV_MOVIES');
+              return;
+            }
+          }
           e.stopPropagation();
         }}
         placeholder={placeholder}
@@ -301,7 +356,7 @@ function FocusableInput({ value, onChange, placeholder, containerRef }: any) {
 // l'entrée sur 2-3 secondes quand renderLimit atteint 100.
 const MAX_STAGGERED_CARDS = 20;
 
-function FocusableMovie({ vid, idx, onClick, onLongPress }: any) {
+function FocusableMovie({ vid, idx, fallbackCover, onClick, onLongPress }: any) {
   const rating = useRatingStore(state => {
     const profileId = useProfileStore.getState().activeProfile?.id || 'default';
     return state.ratings[profileId]?.[String(vid.stream_id)]?.rating;
@@ -310,6 +365,19 @@ function FocusableMovie({ vid, idx, onClick, onLongPress }: any) {
   const pressTimer = React.useRef<NodeJS.Timeout | null>(null);
   const longPressTriggered = React.useRef(false);
   const lastFocusTime = React.useRef(0);
+  const retryRef = React.useRef(0);
+
+  const rawCover = vid.stream_icon || vid.cover || vid.movie_image || fallbackCover;
+  const cleanCover = React.useMemo(() => {
+    if (!rawCover || typeof rawCover !== 'string') return '';
+    const trimmed = rawCover.trim();
+    if (!trimmed || trimmed === 'null' || trimmed === 'undefined') return '';
+    try {
+      return encodeURI(decodeURI(trimmed));
+    } catch {
+      return trimmed;
+    }
+  }, [rawCover]);
 
   const { ref, focused, focusKey } = useFocusable({
     focusKey: `MOVIE_${vid.stream_id}`,
@@ -406,10 +474,28 @@ function FocusableMovie({ vid, idx, onClick, onLongPress }: any) {
         }}
         className="aspect-[3/4.5] bg-[#0a0a0a] rounded-sm overflow-hidden cursor-pointer"
       >
-        <img src={vid.stream_icon || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%23111'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='20' fill='%23555'%3ENo Image%3C/text%3E%3C/svg%3E"}
+        <img 
+          loading="lazy"
+          decoding="async"
+          src={cleanCover || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%23111'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='20' fill='%23555'%3ENo Image%3C/text%3E%3C/svg%3E"}
           onError={(e) => {
+            const target = e.currentTarget;
+            // 1. Essai de rechargement différé si engorgement réseau
+            if (retryRef.current < 2 && cleanCover) {
+              retryRef.current += 1;
+              setTimeout(() => {
+                if (target) target.src = cleanCover;
+              }, 800 * retryRef.current);
+              return;
+            }
+            // 2. Bascule vers la jaquette des favoris
+            if (fallbackCover && target.src !== fallbackCover) {
+              target.src = fallbackCover;
+              return;
+            }
+            // 3. Fallback SVG
             const fallback = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%23111'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='20' fill='%23555'%3ENo Image%3C/text%3E%3C/svg%3E";
-            if (e.currentTarget.src !== fallback) { e.currentTarget.src = fallback; }
+            if (target.src !== fallback) { target.src = fallback; }
           }}
           alt=""
           className={`w-full h-full object-cover transition-all duration-1000 ${focused ? 'scale-110 opacity-100' : 'opacity-90'}`} />

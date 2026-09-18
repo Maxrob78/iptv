@@ -825,7 +825,9 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFo
 
       <div className={`w-full h-full overflow-hidden bg-[#0a0a0a] relative ${isChannel ? 'rounded-2xl' : 'rounded-xl'}`}>
         <img
-          src={item.stream_icon || item.cover || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%23111'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='20' fill='%23555'%3ENo Image%3C/text%3E%3C/svg%3E"}
+          loading="lazy"
+          decoding="async"
+          src={item.stream_icon || item.cover || item.movie_image || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%23111'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='20' fill='%23555'%3ENo Image%3C/text%3E%3C/svg%3E"}
           onError={(e) => {
             const fallback = isChannel
               ? "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Crect width='300' height='300' fill='%23111'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' fill='%23b5924d'%3ENO SIGNAL%3C/text%3E%3C/svg%3E"

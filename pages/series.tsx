@@ -192,7 +192,14 @@ function FocusableInput({ value, onChange, placeholder, containerRef }: any) {
     onEnterPress: () => {
       ref.current.querySelector('input').focus();
     },
-    onArrowPress: (direction) => direction !== 'up',
+    onArrowPress: (direction) => {
+      if (direction === 'up') return false;
+      if (direction === 'left') {
+        setFocus('NAV_SERIES');
+        return false;
+      }
+      return true;
+    },
     onFocus: () => {
       lastFocusedSeriesKey = focusKey;
       if (!(window as any).isMouseFocus) {
@@ -224,6 +231,16 @@ function FocusableInput({ value, onChange, placeholder, containerRef }: any) {
           if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Escape') {
             e.currentTarget.blur();
             return;
+          }
+          if (e.key === 'ArrowLeft') {
+            const input = e.currentTarget;
+            if (input.selectionStart === 0 && input.selectionEnd === 0) {
+              e.preventDefault();
+              e.stopPropagation();
+              input.blur();
+              setFocus('NAV_SERIES');
+              return;
+            }
           }
           e.stopPropagation();
         }}
@@ -293,6 +310,18 @@ function FocusableSeriesCard({ s, idx, onClick, onLongPress }: any) {
     }
   };
 
+  const retryRef = React.useRef(0);
+  const rawCover = s.cover || s.stream_icon || s.poster || s.movie_image;
+  const cleanCover = React.useMemo(() => {
+    if (!rawCover || typeof rawCover !== 'string') return '';
+    try {
+      const trimmed = rawCover.trim();
+      return encodeURI(decodeURI(trimmed));
+    } catch {
+      return rawCover.trim();
+    }
+  }, [rawCover]);
+
   return (
     <div
       ref={ref}
@@ -318,10 +347,21 @@ function FocusableSeriesCard({ s, idx, onClick, onLongPress }: any) {
         }}
         className="aspect-[3/4.5] bg-[#0a0a0a] rounded-sm overflow-hidden cursor-pointer"
       >
-        <img src={s.cover || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%23111'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='20' fill='%23555'%3ENo Image%3C/text%3E%3C/svg%3E"}
+        <img 
+          loading="lazy"
+          decoding="async"
+          src={cleanCover || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%23111'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='20' fill='%23555'%3ENo Image%3C/text%3E%3C/svg%3E"}
           onError={(e) => {
+            const target = e.currentTarget;
+            if (retryRef.current < 2 && cleanCover) {
+              retryRef.current += 1;
+              setTimeout(() => {
+                if (target) target.src = cleanCover;
+              }, 800 * retryRef.current);
+              return;
+            }
             const fallback = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%23111'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='20' fill='%23555'%3ENo Image%3C/text%3E%3C/svg%3E";
-            if (e.currentTarget.src !== fallback) { e.currentTarget.src = fallback; }
+            if (target.src !== fallback) { target.src = fallback; }
           }}
           alt=""
           className={`w-full h-full object-cover transition-all duration-1000 ${focused ? 'scale-110 opacity-100' : 'opacity-90'}`} />

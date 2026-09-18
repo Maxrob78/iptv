@@ -42,8 +42,42 @@ export function Sidebar() {
 
         <nav className="flex-1 mt-12 3xl:mt-16 space-y-2 3xl:space-y-3 px-4 3xl:px-6">
           <NavButton customFocusKey="NAV_INDEX" icon="🏠" label="Index" active={router.pathname === '/'} onClick={() => router.push('/')} isFirst={true} />
-          <NavButton customFocusKey="NAV_MOVIES" icon="🎬" label="Cinéma" active={router.pathname.includes('/movies')} onClick={() => router.push('/movies')} />
-          <NavButton customFocusKey="NAV_CHANNELS" icon="📺" label="Canaux" active={router.pathname.includes('/channels')} onClick={() => router.push('/channels')} />
+          <NavButton
+            customFocusKey="NAV_MOVIES"
+            icon="🎬"
+            label="Cinéma"
+            active={router.pathname.includes('/movies')}
+            onClick={() => {
+              if (router.pathname.includes('/movies')) {
+                try {
+                  setFocus('MOVIE_SEARCH');
+                } catch (e) {}
+                const main = document.querySelector('main');
+                if (main) main.scrollTop = 0;
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              } else {
+                router.push('/movies');
+              }
+            }}
+          />
+          <NavButton
+            customFocusKey="NAV_CHANNELS"
+            icon="📺"
+            label="Canaux"
+            active={router.pathname.includes('/channels')}
+            onClick={() => {
+              if (router.pathname.includes('/channels')) {
+                try {
+                  setFocus('CHANNEL_SEARCH');
+                } catch (e) {}
+                const main = document.querySelector('main');
+                if (main) main.scrollTop = 0;
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              } else {
+                router.push('/channels');
+              }
+            }}
+          />
           <NavButton
             customFocusKey="NAV_FAVORITES"
             icon="✨"
@@ -113,6 +147,12 @@ function NavButton({ icon, label, active = false, onClick, isFirst, isLast, cust
         const path = window.location.pathname;
         if (path.includes('/movie/')) {
           setFocus('MOVIE_MAIN_CONTENT');
+        } else if (path === '/movies' || path.includes('/movies')) {
+          setFocus('MOVIE_SEARCH');
+        } else if (path === '/series' || (path.includes('/series') && !path.includes('/series/'))) {
+          setFocus('SERIES_SEARCH');
+        } else if (path === '/channels' || path.includes('/channels')) {
+          setFocus('CHANNEL_SEARCH');
         } else if (path === '/' || path === '') {
           if ((window as any).hasJustRefreshed) {
             setFocus('HERO_RESUME');

@@ -10,7 +10,7 @@ interface FavoriteModalProps {
 }
 
 export default function FavoriteModal({ item, onClose }: FavoriteModalProps) {
-  const { addItemToCategory, addCategory, getProfileData } = useDataStore();
+  const { addItemToCategory, removeItemFromCategory, addCategory, getProfileData } = useDataStore();
   const { favoriteCategories } = getProfileData();
   const [newCatName, setNewCatName] = useState('');
   const [showAdd, setShowAdd] = useState(false);
@@ -57,7 +57,16 @@ export default function FavoriteModal({ item, onClose }: FavoriteModalProps) {
 
   const handleAdd = (catId: string, isKeyboard = false) => {
     if (isKeyboard && !hasReleased) return;
-    addItemToCategory(catId, item);
+    const cat = favoriteCategories.find(c => c.id === catId);
+    const itemId = item.stream_id || item.series_id || item.id;
+    const strId = String(itemId);
+    const isAlreadyInCat = cat?.items.some((i: any) => String(i.stream_id || i.series_id || i.id) === strId);
+
+    if (isAlreadyInCat) {
+      removeItemFromCategory(catId, itemId);
+    } else {
+      addItemToCategory(catId, item);
+    }
     onClose();
   };
 

@@ -198,7 +198,14 @@ function FocusableInput({ value, onChange, placeholder, containerRef }: any) {
     onEnterPress: () => {
       ref.current.querySelector('input').focus();
     },
-    onArrowPress: (direction) => direction !== 'up',
+    onArrowPress: (direction) => {
+      if (direction === 'up') return false;
+      if (direction === 'left') {
+        setFocus('NAV_CHANNELS');
+        return false;
+      }
+      return true;
+    },
     onFocus: () => {
       if (!(window as any).isMouseFocus) {
         setTimeout(() => {
@@ -241,6 +248,16 @@ function FocusableInput({ value, onChange, placeholder, containerRef }: any) {
           if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Escape') {
             e.currentTarget.blur();
             return;
+          }
+          if (e.key === 'ArrowLeft') {
+            const input = e.currentTarget;
+            if (input.selectionStart === 0 && input.selectionEnd === 0) {
+              e.preventDefault();
+              e.stopPropagation();
+              input.blur();
+              setFocus('NAV_CHANNELS');
+              return;
+            }
           }
           e.stopPropagation();
         }}
