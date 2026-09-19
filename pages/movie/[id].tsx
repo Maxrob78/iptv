@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { xtreamApi } from '../../utils/xtream';
 import { Sidebar } from '../../components/Sidebar';
-import { useDataStore } from '../../store/useDataStore';
+import { useDataStore, dataStorage } from '../../store/useDataStore';
 import { useProfileStore } from '../../store/useProfileStore';
 import { ResumeModal } from '../../components/ResumeModal';
 import RatingModal from '../../components/RatingModal';
@@ -45,28 +45,77 @@ export default function MovieDetail() {
     }
   });
 
+  const cleanId = id ? (Array.isArray(id) ? String(id[0]) : String(id)) : '';
+
   const userRating = useRatingStore(state => {
     const profileId = useProfileStore.getState().activeProfile?.id || 'default';
-    return state.ratings[profileId]?.[String(id)]?.rating;
+    return state.ratings[profileId]?.[cleanId]?.rating;
   });
+
+  const fallbackMovie = React.useMemo(() => {
+    if (!cleanId || cleanId.startsWith('local-')) return null;
+    const storeMovies = useDataStore.getState().movies || [];
+    const storeFavorites = useDataStore.getState().getProfileData()?.favorites || [];
+    const activeProfileId = useProfileStore.getState().activeProfile?.id;
+    const historyKey = activeProfileId ? `iptv_playback_history_${activeProfileId}` : 'iptv_playback_history';
+    let historyItem: any = null;
+    try {
+      const history = JSON.parse(localStorage.getItem(historyKey) || '{}');
+      historyItem = history[cleanId];
+    } catch { }
+
+    const match = 
+      storeMovies.find((m: any) => String(m.stream_id || m.id) === cleanId) ||
+      storeFavorites.find((f: any) => String(f.stream_id || f.id) === cleanId);
+
+    if (match) {
+      return {
+        stream_id: cleanId,
+        name: match.name || match.title || historyItem?.title || '',
+        cover: match.stream_icon || match.cover || historyItem?.cover || '',
+        rating: match.rating || '',
+        year: match.year || match.releaseDate || '',
+        container_extension: match.container_extension || historyItem?.extension || 'mkv'
+      };
+    }
+
+    if (historyItem) {
+      return {
+        stream_id: cleanId,
+        name: historyItem.title || '',
+        cover: historyItem.cover || '',
+        rating: '',
+        year: '',
+        container_extension: historyItem.extension || 'mkv'
+      };
+    }
+    return null;
+  }, [cleanId]);
+
+  const isValidMovieInfo = (info: any) => {
+    if (!info || typeof info !== 'object' || Array.isArray(info)) return false;
+    return Boolean(info.name || info.title || info.movie_image || info.cover);
+  };
+
+  const hasValidData = Boolean(data && isValidMovieInfo(data.info));
 
   const focusSet = useRef(false);
   useEffect(() => {
-    if (!loading && data && !focusSet.current) {
+    if (!loading && hasValidData && !focusSet.current) {
       setTimeout(() => {
         setFocus('MOVIE_BACK_BTN');
         focusSet.current = true;
       }, 300);
-    } else if (loading) {
+    } else if (loading && !hasValidData) {
       setTimeout(() => {
         setFocus('MOVIE_LOADING_CANCEL');
       }, 100);
-    } else if (loadError) {
+    } else if (loadError && !hasValidData) {
       setTimeout(() => {
         setFocus('MOVIE_ERROR_BACK');
       }, 100);
     }
-  }, [loading, data, loadError]);
+  }, [loading, hasValidData, loadError]);
 
   // Écouteur direct des touches retour pendant le chargement ou l'erreur
   useEffect(() => {
@@ -83,13 +132,13 @@ export default function MovieDetail() {
         e.which === 461 ||
         e.which === 4;
 
-      if (isBack && (loading || loadError || !data || !data.info)) {
+      if (isBack && (loading || loadError || !hasValidData)) {
         router.back();
       }
     };
     window.addEventListener('keydown', handleBackDuringLoading);
     return () => window.removeEventListener('keydown', handleBackDuringLoading);
-  }, [loading, loadError, data, router]);
+  }, [loading, loadError, hasValidData, router]);
 
   useEffect(() => {
     const activeProfileId = useProfileStore.getState().activeProfile?.id;
@@ -138,11 +187,11 @@ export default function MovieDetail() {
   }, []);
 
   useEffect(() => {
-    if (!id) return;
+    if (!cleanId) return;
     focusSet.current = false;
 
-    if (id.toString().startsWith('local-')) {
-      const realId = id.toString().replace('local-', '');
+    if (cleanId.startsWith('local-')) {
+      const realId = cleanId.replace('local-', '');
       const localItem = localLibrary.find((item: any) => item.id === realId);
       
       if (localItem) {
@@ -163,43 +212,146 @@ export default function MovieDetail() {
     }
 
     const fetchData = async () => {
-      setLoading(true);
       setLoadError(null);
-      
+
+      // 1. Tenter de charger immédiatement depuis le cache IndexedDB
+      try {
+        const cached = await dataStorage.getItem<any>(`cached_vod_${cleanId}`);
+        if (cached && isValidMovieInfo(cached.info)) {
+          setData(cached);
+          setLoading(false);
+        } else if (fallbackMovie && fallbackMovie.name) {
+          setData((prev: any) => {
+            if (prev && isValidMovieInfo(prev.info)) return prev;
+            return {
+              info: {
+                name: fallbackMovie.name,
+                cover: fallbackMovie.cover,
+                movie_image: fallbackMovie.cover,
+                rating: fallbackMovie.rating,
+                releaseDate: fallbackMovie.year,
+                plot: ''
+              },
+              movie_data: {
+                stream_id: cleanId,
+                name: fallbackMovie.name,
+                container_extension: fallbackMovie.container_extension,
+                stream_icon: fallbackMovie.cover
+              }
+            };
+          });
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
+      } catch {
+        if (!fallbackMovie) setLoading(true);
+      }
+
       let isTimedOut = false;
       const timeoutId = setTimeout(() => {
         isTimedOut = true;
-        setLoadError("Le serveur IPTV met trop de temps à répondre (Délai d'attente dépassé).");
+        setData((current: any) => {
+          if (!current || !isValidMovieInfo(current.info)) {
+            setLoadError("Le serveur IPTV met trop de temps à répondre (Délai d'attente dépassé).");
+          }
+          return current;
+        });
         setLoading(false);
       }, 12000);
 
       try {
-        const vodInfo = await xtreamApi.getVodInfo(Number(id));
+        const vodInfo = await xtreamApi.getVodInfo(Number(cleanId));
         if (isTimedOut) return;
         clearTimeout(timeoutId);
-        
-        if (!vodInfo || !vodInfo.info) {
-          throw new Error("Fiche introuvable ou métadonnées manquantes pour cette œuvre.");
+
+        if (vodInfo && isValidMovieInfo(vodInfo.info)) {
+          if (!vodInfo.info.name && fallbackMovie?.name) {
+            vodInfo.info.name = fallbackMovie.name;
+          }
+          if (!vodInfo.info.cover && !vodInfo.info.movie_image && fallbackMovie?.cover) {
+            vodInfo.info.cover = fallbackMovie.cover;
+            vodInfo.info.movie_image = fallbackMovie.cover;
+          }
+          if (!vodInfo.movie_data) {
+            vodInfo.movie_data = {
+              stream_id: cleanId,
+              name: vodInfo.info.name || fallbackMovie?.name,
+              container_extension: fallbackMovie?.container_extension || 'mkv',
+              stream_icon: vodInfo.info.cover || fallbackMovie?.cover
+            };
+          }
+          setData(vodInfo);
+          setLoadError(null);
+          dataStorage.setItem(`cached_vod_${cleanId}`, vodInfo).catch(() => {});
+
+          const cover = vodInfo.info.cover || vodInfo.info.movie_image;
+          if (cover) {
+            useDataStore.getState().updateItemCover(cleanId, cover);
+          }
+        } else {
+          console.warn("[VOD] Réponse IPTV incomplète ou vide pour ID:", cleanId, vodInfo);
+          setData((current: any) => {
+            if (current && isValidMovieInfo(current.info)) {
+              return current;
+            }
+            if (fallbackMovie && fallbackMovie.name) {
+              return {
+                info: {
+                  name: fallbackMovie.name,
+                  cover: fallbackMovie.cover,
+                  movie_image: fallbackMovie.cover,
+                  rating: fallbackMovie.rating,
+                  releaseDate: fallbackMovie.year,
+                  plot: ''
+                },
+                movie_data: {
+                  stream_id: cleanId,
+                  name: fallbackMovie.name,
+                  container_extension: fallbackMovie.container_extension,
+                  stream_icon: fallbackMovie.cover
+                }
+              };
+            }
+            throw new Error("Fiche introuvable ou métadonnées manquantes pour cette œuvre.");
+          });
         }
-        setData(vodInfo);
-        const cover = vodInfo.info.cover || vodInfo.info.movie_image;
-        if (cover) {
-          const cleanId = Array.isArray(id) ? id[0] : id;
-          useDataStore.getState().updateItemCover(cleanId, cover);
-        }
-        setLoadError(null);
       } catch (err: any) {
         if (isTimedOut) return;
         clearTimeout(timeoutId);
         console.error("Erreur de récupération des détails du film", err);
-        setLoadError(err.message || "Impossible de charger les détails du film auprès du serveur.");
+        setData((current: any) => {
+          if (current && isValidMovieInfo(current.info)) {
+            return current;
+          }
+          if (fallbackMovie && fallbackMovie.name) {
+            return {
+              info: {
+                name: fallbackMovie.name,
+                cover: fallbackMovie.cover,
+                movie_image: fallbackMovie.cover,
+                rating: fallbackMovie.rating,
+                releaseDate: fallbackMovie.year,
+                plot: ''
+              },
+              movie_data: {
+                stream_id: cleanId,
+                name: fallbackMovie.name,
+                container_extension: fallbackMovie.container_extension,
+                stream_icon: fallbackMovie.cover
+              }
+            };
+          }
+          setLoadError(err.message || "Impossible de charger les détails du film auprès du serveur.");
+          return current;
+        });
       } finally {
         clearTimeout(timeoutId);
         setLoading(false);
       }
     };
     fetchData();
-  }, [id, localLibrary]);
+  }, [cleanId, localLibrary, fallbackMovie]);
 
   useEffect(() => {
     if (data && data.info) {
@@ -216,7 +368,7 @@ export default function MovieDetail() {
     }
   }, [data]);
 
-  if (loading) {
+  if (loading && !hasValidData) {
     return (
       <div className="flex-1 flex bg-[#050505] text-white min-h-screen font-['Inter']">
         <Sidebar />
@@ -252,7 +404,7 @@ export default function MovieDetail() {
     );
   }
 
-  if (loadError || !data || !data.info) {
+  if ((loadError && !hasValidData) || (!loading && !hasValidData)) {
     return (
       <div className="flex-1 flex bg-[#050505] text-white min-h-screen font-['Inter']">
         <Sidebar />
@@ -284,10 +436,11 @@ export default function MovieDetail() {
                 onClick={() => {
                   setLoadError(null);
                   setLoading(true);
-                  xtreamApi.getVodInfo(Number(id))
+                  xtreamApi.getVodInfo(Number(cleanId))
                     .then(vodInfo => {
-                      if (!vodInfo || !vodInfo.info) throw new Error("Fiche introuvable");
+                      if (!vodInfo || !isValidMovieInfo(vodInfo.info)) throw new Error("Fiche introuvable");
                       setData(vodInfo);
+                      dataStorage.setItem(`cached_vod_${cleanId}`, vodInfo).catch(() => {});
                       setLoadError(null);
                     })
                     .catch(e => setLoadError(e.message || "Erreur de connexion"))
@@ -306,18 +459,20 @@ export default function MovieDetail() {
     );
   }
 
+  const movieData = data?.movie_data || data?.info || fallbackMovie || {};
+  const displayTitle = data?.info?.name || movieData?.name || fallbackMovie?.name || "Film";
+  const displayCover = data?.info?.cover || data?.info?.movie_image || movieData?.stream_icon || fallbackMovie?.cover;
+
   const handlePlayMovie = (forcedStartTime?: number) => {
     if (launchingVideo) return; 
     
-    const movieData = data.movie_data || data.info; 
-    const streamUrl = xtreamApi.getStreamUrl(movieData.stream_id || id, 'movie', movieData.container_extension || 'mkv');
+    const streamId = String(movieData.stream_id || cleanId);
+    const streamUrl = xtreamApi.getStreamUrl(streamId, 'movie', movieData.container_extension || 'mkv');
     
     const activeProfileId = useProfileStore.getState().activeProfile?.id;
     const historyKey = activeProfileId ? `iptv_playback_history_${activeProfileId}` : 'iptv_playback_history';
     const history = JSON.parse(localStorage.getItem(historyKey) || '{}');
     let startTime = forcedStartTime ?? 0;
-    
-    const streamId = String(movieData.stream_id || id);
 
     if (history[streamId] && forcedStartTime === undefined) {
       const savedTime = history[streamId].currentTime;
@@ -340,7 +495,7 @@ export default function MovieDetail() {
       setPlaybackHistory(history);
     }
 
-    setLaunchingVideo(data.info.name || movieData.name);
+    setLaunchingVideo(displayTitle);
     
     if (!history[streamId]) {
       history[streamId] = {
@@ -351,9 +506,9 @@ export default function MovieDetail() {
         watched: false,
         lastUpdated: Date.now(),
         type: 'movie',
-        title: data.info.name || movieData.name,
+        title: displayTitle,
         extension: movieData.container_extension || 'mkv',
-        cover: data.info.cover || data.info.movie_image || ''
+        cover: displayCover || ''
       };
       localStorage.setItem(historyKey, JSON.stringify(history));
     }
@@ -361,28 +516,29 @@ export default function MovieDetail() {
     if ((window as any).electronAPI && (window as any).electronAPI.openMPV) {
       (window as any).electronAPI.openMPV({
         streamUrl: streamUrl,
-        title: data.info.name || movieData.name,
+        title: displayTitle,
         startTime: startTime,
         streamId: streamId,
         type: 'movie'
       });
       setTimeout(() => setLaunchingVideo(null), 3000);
     } else {
-      router.push(`/player/${streamId}?type=movie&extension=${movieData.container_extension || 'mkv'}&title=${encodeURIComponent(data.info.name || movieData.name)}&cover=${encodeURIComponent(data.info.cover || data.info.movie_image || '')}&start=${startTime}`);
+      router.push(`/player/${streamId}?type=movie&extension=${movieData.container_extension || 'mkv'}&title=${encodeURIComponent(displayTitle)}&cover=${encodeURIComponent(displayCover || '')}&start=${startTime}`);
       setTimeout(() => setLaunchingVideo(null), 1000);
     }
   };
 
   const parseCast = (castStr?: string) => {
-    if (!castStr) return [];
+    if (!castStr || typeof castStr !== 'string') return [];
     return castStr.split(',').map(s => s.trim()).filter(Boolean);
   };
 
-  const actors = parseCast(data.info.cast);
-  const directors = parseCast(data.info.director);
-  const historyData = playbackHistory[String(id)];
+  const actors = parseCast(data?.info?.cast);
+  const directors = parseCast(data?.info?.director);
+  const historyData = playbackHistory[cleanId];
 
   const getDisplayDuration = () => {
+    if (!data?.info) return null;
     if (data.info.duration && typeof data.info.duration === 'string') {
         const d = data.info.duration.trim().toLowerCase();
         if (d.includes(':')) {
@@ -431,12 +587,14 @@ export default function MovieDetail() {
           )}
 
           <div className="fixed inset-0 z-0 w-full h-[70vh]">
-            <img 
-              src={data.info.cover || data.info.movie_image} 
-              alt="Cover" 
-              className="w-full h-full object-cover opacity-30"
-              onError={(e) => e.currentTarget.style.display = 'none'}
-            />
+            {displayCover && (
+              <img 
+                src={displayCover} 
+                alt="Cover" 
+                className="w-full h-full object-cover opacity-30"
+                onError={(e) => e.currentTarget.style.display = 'none'}
+              />
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/80 to-transparent" />
             <div className="absolute inset-0 bg-gradient-to-r from-[#050505] via-[#050505]/50 to-transparent" />
           </div>
@@ -450,11 +608,14 @@ export default function MovieDetail() {
               <div className="w-72 flex-shrink-0">
                 <div className="aspect-[3/4.5] rounded-xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10 relative">
                   <img 
-                    src={data.info.cover || data.info.movie_image} 
-                    alt={data.info.name}
+                    src={displayCover || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%23111'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='20' fill='%23555'%3ENo Image%3C/text%3E%3C/svg%3E"} 
+                    alt={displayTitle}
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%23111'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='20' fill='%23555'%3ENo Image%3C/text%3E%3C/svg%3E";
+                      const fallback = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%23111'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='20' fill='%23555'%3ENo Image%3C/text%3E%3C/svg%3E";
+                      if (e.currentTarget.src !== fallback) {
+                        e.currentTarget.src = fallback;
+                      }
                     }}
                   />
                   {historyData && historyData.watched && (
@@ -472,7 +633,7 @@ export default function MovieDetail() {
                       <span className="bg-[#f5c518] text-black px-1 py-0.5 rounded-[2px] font-black tracking-normal text-[8px] shadow-sm">IMDb</span>
                       <span className="text-[#f5c518] font-bold text-sm">{omdbRating}</span>
                     </div>
-                  ) : data.info.rating ? (
+                  ) : data?.info?.rating ? (
                     <div className="flex items-center space-x-2 bg-[#b5924d]/20 px-3 py-1 rounded-sm border border-[#b5924d]/30">
                       <span className="text-[#b5924d]">★</span>
                       <span className="text-[#b5924d] font-bold text-sm">{data.info.rating}</span>
@@ -484,23 +645,23 @@ export default function MovieDetail() {
                         <span className="text-blue-400 font-bold text-sm">Vous : {userRating}/10</span>
                     </div>
                   )}
-                  {data.info.releaseDate && (
+                  {data?.info?.releaseDate && (
                     <span className="text-gray-400 text-sm font-medium">{data.info.releaseDate}</span>
                   )}
                   {getDisplayDuration() && (
                     <span className="text-gray-400 text-sm font-medium">{getDisplayDuration()}</span>
                   )}
-                  {data.info.genre && (
+                  {data?.info?.genre && (
                     <span className="text-gray-500 text-sm">{data.info.genre}</span>
                   )}
                 </div>
 
                 <h1 className="text-6xl font-extralight tracking-tight mb-8 leading-tight">
-                  {data.info.name}
+                  {displayTitle}
                 </h1>
 
                 <p className="text-gray-400 text-lg leading-relaxed max-w-3xl mb-12 font-light">
-                  {data.info.plot || data.info.description || "Aucun synopsis disponible."}
+                  {data?.info?.plot || data?.info?.description || "Aucun synopsis disponible."}
                 </p>
 
                 {historyData && historyData.progress > 1 && historyData.progress < 90 && (
@@ -524,17 +685,17 @@ export default function MovieDetail() {
                     text={historyData?.progress > 1 && historyData?.progress < 90 ? "Reprendre" : "Lancer le film"} 
                   />
                   
-                  {data.info.youtube_trailer && (
+                  {data?.info?.youtube_trailer && (
                     <TrailerButton videoId={data.info.youtube_trailer} />
                   )}
 
                   <FavoriteDetailsButton item={{ 
-                    ...(data.movie_data || {}), 
-                    ...data.info, 
-                    stream_id: id, 
-                    name: data.info?.name || data.movie_data?.name,
-                    cover: data.info?.cover || data.info?.movie_image || (data.movie_data && data.movie_data.stream_icon),
-                    stream_icon: data.info?.cover || data.info?.movie_image || (data.movie_data && data.movie_data.stream_icon)
+                    ...(data?.movie_data || {}), 
+                    ...(data?.info || {}), 
+                    stream_id: cleanId, 
+                    name: displayTitle,
+                    cover: displayCover,
+                    stream_icon: displayCover
                   }} />
                 </div>
 

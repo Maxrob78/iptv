@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { xtreamApi } from '../../utils/xtream';
 import { Sidebar } from '../../components/Sidebar';
-import { useDataStore } from '../../store/useDataStore';
+import { useDataStore, dataStorage } from '../../store/useDataStore';
 import { useProfileStore } from '../../store/useProfileStore';
 import { ResumeModal } from '../../components/ResumeModal';
 import RatingModal from '../../components/RatingModal';
@@ -24,23 +24,51 @@ export default function SeriesDetail() {
   const [selectedActor, setSelectedActor] = useState<string | null>(null);
   const [omdbRating, setOmdbRating] = useState<string | null>(null);
 
+  const cleanId = id ? (Array.isArray(id) ? String(id[0]) : String(id)) : '';
+
+  const fallbackSeries = React.useMemo(() => {
+    if (!cleanId || cleanId.startsWith('local-')) return null;
+    const storeSeries = useDataStore.getState().series || [];
+    const storeFavorites = useDataStore.getState().getProfileData()?.favorites || [];
+    const match = 
+      storeSeries.find((s: any) => String(s.series_id || s.id) === cleanId) ||
+      storeFavorites.find((f: any) => String(f.series_id || f.id) === cleanId);
+    if (match) {
+      return {
+        series_id: cleanId,
+        name: match.name || match.title || '',
+        cover: match.cover || match.stream_icon || match.poster || '',
+        rating: match.rating || '',
+        year: match.year || match.releaseDate || ''
+      };
+    }
+    return null;
+  }, [cleanId]);
+
+  const isValidSeriesInfo = (info: any) => {
+    if (!info || typeof info !== 'object' || Array.isArray(info)) return false;
+    return Boolean(info.name || info.title || info.cover || info.movie_image);
+  };
+
+  const hasValidData = Boolean(data && isValidSeriesInfo(data.info));
+
   const focusSet = useRef(false);
   useEffect(() => {
-    if (!loading && data && !focusSet.current) {
+    if (!loading && hasValidData && !focusSet.current) {
       setTimeout(() => {
         setFocus('BACK_BTN');
         focusSet.current = true;
       }, 300);
-    } else if (loading) {
+    } else if (loading && !hasValidData) {
       setTimeout(() => {
         setFocus('SERIES_LOADING_CANCEL');
       }, 100);
-    } else if (loadError) {
+    } else if (loadError && !hasValidData) {
       setTimeout(() => {
         setFocus('SERIES_ERROR_BACK');
       }, 100);
     }
-  }, [loading, data, loadError]);
+  }, [loading, hasValidData, loadError]);
 
   // Écouteur direct des touches retour pendant le chargement ou l'erreur
   useEffect(() => {
@@ -57,13 +85,13 @@ export default function SeriesDetail() {
         e.which === 461 ||
         e.which === 4;
 
-      if (isBack && (loading || loadError || !data || !data.info)) {
+      if (isBack && (loading || loadError || !hasValidData)) {
         router.back();
       }
     };
     window.addEventListener('keydown', handleBackDuringLoading);
     return () => window.removeEventListener('keydown', handleBackDuringLoading);
-  }, [loading, loadError, data, router]);
+  }, [loading, loadError, hasValidData, router]);
 
   const { getProfileData } = useDataStore();
   const { localLibrary } = getProfileData();
@@ -89,7 +117,7 @@ export default function SeriesDetail() {
 
   const userRating = useRatingStore(state => {
     const profileId = useProfileStore.getState().activeProfile?.id || 'default';
-    return state.ratings[profileId]?.[String(id)]?.rating;
+    return state.ratings[profileId]?.[cleanId]?.rating;
   });
 
   useEffect(() => {
@@ -139,11 +167,11 @@ export default function SeriesDetail() {
   }, []);
 
   useEffect(() => {
-    if (!id) return;
+    if (!cleanId) return;
     focusSet.current = false;
 
-    if (id.toString().startsWith('local-')) {
-      const realId = id.toString().replace('local-', '');
+    if (cleanId.startsWith('local-')) {
+      const realId = cleanId.replace('local-', '');
       const localItem = localLibrary.find((item: any) => item.id === realId);
       
       if (localItem) {
@@ -171,61 +199,141 @@ export default function SeriesDetail() {
     }
 
     const fetchData = async () => {
-      setLoading(true);
       setLoadError(null);
+
+      // 1. Tenter de charger immédiatement depuis le cache IndexedDB
+      try {
+        const cached = await dataStorage.getItem<any>(`cached_series_${cleanId}`);
+        if (cached && isValidSeriesInfo(cached.info)) {
+          setData(cached);
+          const firstSeason = cached.seasons?.find((s: any) => cached.episodes?.[s.season_number]?.length > 0)?.season_number || "1";
+          setSelectedSeason(firstSeason);
+          setLoading(false);
+        } else if (fallbackSeries && fallbackSeries.name) {
+          setData((prev: any) => {
+            if (prev && isValidSeriesInfo(prev.info)) return prev;
+            return {
+              info: {
+                name: fallbackSeries.name,
+                cover: fallbackSeries.cover,
+                rating: fallbackSeries.rating,
+                releaseDate: fallbackSeries.year,
+                genre: '',
+                plot: ''
+              },
+              episodes: {},
+              seasons: []
+            };
+          });
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
+      } catch {
+        if (!fallbackSeries) setLoading(true);
+      }
 
       let isTimedOut = false;
       const timeoutId = setTimeout(() => {
         isTimedOut = true;
-        setLoadError("Le serveur IPTV met trop de temps à répondre (Délai d'attente dépassé).");
+        setData((current: any) => {
+          if (!current || !isValidSeriesInfo(current.info)) {
+            setLoadError("Le serveur IPTV met trop de temps à répondre (Délai d'attente dépassé).");
+          }
+          return current;
+        });
         setLoading(false);
       }, 12000);
 
       try {
-        const seriesInfo = await xtreamApi.getSeriesInfo(Number(id));
+        const seriesInfo = await xtreamApi.getSeriesInfo(Number(cleanId));
         if (isTimedOut) return;
         clearTimeout(timeoutId);
 
-        if (!seriesInfo || !seriesInfo.info) {
-          throw new Error("Fiche introuvable ou métadonnées manquantes pour cette série.");
-        }
-
-        setData(seriesInfo);
-        setLoadError(null);
-
-        const seriesCover = seriesInfo.info?.cover || seriesInfo.info?.movie_image;
-        if (seriesCover) {
-          useDataStore.getState().updateItemCover(id as string, seriesCover);
-        }
-        
-        let initialSeason = "";
-        if (seriesInfo.seasons && seriesInfo.seasons.length > 0) {
-          for (const s of seriesInfo.seasons) {
-            const sNum = s.season_number?.toString();
-            if (seriesInfo.episodes[sNum] && seriesInfo.episodes[sNum].length > 0) {
-              initialSeason = sNum;
-              break;
-            }
+        if (seriesInfo && isValidSeriesInfo(seriesInfo.info)) {
+          if (!seriesInfo.info.name && fallbackSeries?.name) {
+            seriesInfo.info.name = fallbackSeries.name;
           }
-        } 
-        
-        if (!initialSeason && seriesInfo.episodes) {
-          initialSeason = Object.keys(seriesInfo.episodes).find(k => seriesInfo.episodes[k].length > 0) || "";
-        }
+          if (!seriesInfo.info.cover && !seriesInfo.info.movie_image && fallbackSeries?.cover) {
+            seriesInfo.info.cover = fallbackSeries.cover;
+          }
 
-        setSelectedSeason(initialSeason || (seriesInfo.seasons?.[0]?.season_number?.toString()) || "1");
+          setData(seriesInfo);
+          dataStorage.setItem(`cached_series_${cleanId}`, seriesInfo).catch(() => {});
+          setLoadError(null);
+
+          const seriesCover = seriesInfo.info?.cover || seriesInfo.info?.movie_image;
+          if (seriesCover) {
+            useDataStore.getState().updateItemCover(cleanId, seriesCover);
+          }
+          
+          let initialSeason = "";
+          if (seriesInfo.seasons && seriesInfo.seasons.length > 0) {
+            for (const s of seriesInfo.seasons) {
+              const sNum = s.season_number?.toString();
+              if (seriesInfo.episodes?.[sNum] && seriesInfo.episodes[sNum].length > 0) {
+                initialSeason = sNum;
+                break;
+              }
+            }
+          } 
+          
+          if (!initialSeason && seriesInfo.episodes) {
+            initialSeason = Object.keys(seriesInfo.episodes).find(k => seriesInfo.episodes[k].length > 0) || "";
+          }
+
+          setSelectedSeason(initialSeason || (seriesInfo.seasons?.[0]?.season_number?.toString()) || "1");
+        } else {
+          console.warn("[SERIES] Réponse IPTV incomplète pour ID:", cleanId, seriesInfo);
+          setData((current: any) => {
+            if (current && isValidSeriesInfo(current.info)) return current;
+            if (fallbackSeries && fallbackSeries.name) {
+              return {
+                info: {
+                  name: fallbackSeries.name,
+                  cover: fallbackSeries.cover,
+                  rating: fallbackSeries.rating,
+                  releaseDate: fallbackSeries.year,
+                  genre: '',
+                  plot: ''
+                },
+                episodes: {},
+                seasons: []
+              };
+            }
+            throw new Error("Fiche introuvable ou métadonnées manquantes pour cette série.");
+          });
+        }
       } catch (err: any) {
         if (isTimedOut) return;
         clearTimeout(timeoutId);
         console.error("Erreur de récupération des détails de la série", err);
-        setLoadError(err.message || "Impossible de charger les détails de la série auprès du serveur.");
+        setData((current: any) => {
+          if (current && isValidSeriesInfo(current.info)) return current;
+          if (fallbackSeries && fallbackSeries.name) {
+            return {
+              info: {
+                name: fallbackSeries.name,
+                cover: fallbackSeries.cover,
+                rating: fallbackSeries.rating,
+                releaseDate: fallbackSeries.year,
+                genre: '',
+                plot: ''
+              },
+              episodes: {},
+              seasons: []
+            };
+          }
+          setLoadError(err.message || "Impossible de charger les détails de la série auprès du serveur.");
+          return current;
+        });
       } finally {
         clearTimeout(timeoutId);
         setLoading(false);
       }
     };
     fetchData();
-  }, [id, localLibrary]);
+  }, [cleanId, localLibrary, fallbackSeries]);
 
   useEffect(() => {
     if (data && data.info) {
@@ -266,7 +374,7 @@ export default function SeriesDetail() {
     }
   }, [loading, data, id]);
 
-  if (loading) {
+  if (loading && !hasValidData) {
     return (
       <div className="flex-1 flex bg-[#050505] text-white min-h-screen font-['Inter']">
         <Sidebar />
@@ -302,7 +410,7 @@ export default function SeriesDetail() {
     );
   }
 
-  if (loadError || !data || !data.info) {
+  if ((loadError && !hasValidData) || (!loading && !hasValidData)) {
     return (
       <div className="flex-1 flex bg-[#050505] text-white min-h-screen font-['Inter']">
         <Sidebar />
@@ -334,10 +442,11 @@ export default function SeriesDetail() {
                 onClick={() => {
                   setLoadError(null);
                   setLoading(true);
-                  xtreamApi.getSeriesInfo(Number(id))
+                  xtreamApi.getSeriesInfo(Number(cleanId))
                     .then(seriesInfo => {
-                      if (!seriesInfo || !seriesInfo.info) throw new Error("Fiche introuvable");
+                      if (!seriesInfo || !isValidSeriesInfo(seriesInfo.info)) throw new Error("Fiche introuvable");
                       setData(seriesInfo);
+                      dataStorage.setItem(`cached_series_${cleanId}`, seriesInfo).catch(() => {});
                       setLoadError(null);
                     })
                     .catch(e => setLoadError(e.message || "Erreur de connexion"))
@@ -356,16 +465,17 @@ export default function SeriesDetail() {
     );
   }
 
-  const episodes = selectedSeason ? data.episodes[selectedSeason] : [];
+  const displayTitle = data?.info?.name || fallbackSeries?.name || "Série";
+  const displayCover = data?.info?.cover || data?.info?.movie_image || fallbackSeries?.cover || "";
+  const episodes = selectedSeason && data?.episodes ? (data.episodes[selectedSeason] || []) : [];
 
   const parseCast = (castStr?: string) => {
-    if (!castStr) return [];
+    if (!castStr || typeof castStr !== 'string') return [];
     return castStr.split(',').map(s => s.trim()).filter(Boolean);
   };
 
-  const actors = data.info ? parseCast(data.info.cast) : [];
-  const directors = data.info ? parseCast(data.info.director) : [];
-
+  const actors = data?.info ? parseCast(data.info.cast) : [];
+  const directors = data?.info ? parseCast(data.info.director) : [];
 
   const handlePlayEpisode = (ep: any, forcedStartTime?: number) => {
     if (launchingVideo) return; 
@@ -397,7 +507,7 @@ export default function SeriesDetail() {
       setPlaybackHistory(history);
     }
 
-    const totalEpisodesCount = Object.values(data.episodes).reduce((acc: number, season: any) => acc + season.length, 0);
+    const totalEpisodesCount = data?.episodes ? Object.values(data.episodes).reduce((acc: number, season: any) => acc + (season?.length || 0), 0) : 0;
 
     setLaunchingVideo(ep.title);
     
@@ -412,10 +522,10 @@ export default function SeriesDetail() {
         type: 'series',
         title: ep.title,
         extension: ep.container_extension || 'mkv',
-        seriesId: id,
-        seriesTitle: data.info.name,
-        seriesCover: data.info.cover,
-        cover: data.info.cover
+        seriesId: cleanId,
+        seriesTitle: displayTitle,
+        seriesCover: displayCover,
+        cover: displayCover
       };
     }
 
@@ -432,7 +542,7 @@ export default function SeriesDetail() {
           startTime: startTime
       });
     } else {
-      router.push(`/player/${ep.id}?type=series&extension=${ep.container_extension}&title=${encodeURIComponent(ep.title)}&seriesId=${id}&seriesTitle=${encodeURIComponent(data.info.name)}&seriesCover=${encodeURIComponent(data.info.cover)}&start=${startTime}`);
+      router.push(`/player/${ep.id}?type=series&extension=${ep.container_extension}&title=${encodeURIComponent(ep.title)}&seriesId=${cleanId}&seriesTitle=${encodeURIComponent(displayTitle)}&seriesCover=${encodeURIComponent(displayCover)}&start=${startTime}`);
     }
 
     setTimeout(() => setLaunchingVideo(null), 3000);
@@ -448,17 +558,17 @@ export default function SeriesDetail() {
             <div className="fixed bottom-12 right-12 z-[100] animate-in slide-in-from-right-10 duration-500">
                 <div className="bg-[#b5924d] text-black px-8 py-4 rounded-sm shadow-2xl flex items-center space-x-4 border border-white/20">
                     <div className="w-2 h-2 bg-black rounded-full animate-ping" />
-                    <span className="text-[10px] font-bold uppercase tracking-[0.3em]">Lancement : {launchingVideo}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.3em]">Lancement de l'épisode</span>
                 </div>
             </div>
         )}
-        <div className="absolute top-12 left-20 z-50 animate-in fade-in slide-in-from-left-10 duration-1000">
+        <div className="absolute top-12 left-12 z-50 animate-in fade-in slide-in-from-left-10 duration-1000">
           <FocusableBackButton onClick={() => router.back()} />
         </div>
 
         <div className="fixed inset-0 pointer-events-none z-0">
             <div className="absolute top-0 left-0 w-full h-[60vh] opacity-20 filter blur-[100px]">
-                <img src={data.info.cover} className="w-full h-full object-cover" alt="" />
+                {displayCover && <img src={displayCover} className="w-full h-full object-cover" alt="" />}
             </div>
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#050505] to-[#050505]" />
         </div>
@@ -472,16 +582,26 @@ export default function SeriesDetail() {
             <div className="flex flex-col lg:flex-row items-start lg:space-x-20">
                 <div className="flex flex-col items-center mb-12 lg:mb-0">
                     <div className="w-64 aspect-[3/4.5] rounded-sm overflow-hidden ring-1 ring-white/10 shadow-2xl mb-8 animate-in zoom-in-95 duration-1000">
-                        <img src={data.info.cover} className="w-full h-full object-cover" alt="" />
+                        <img 
+                          src={displayCover || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%23111'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='20' fill='%23555'%3ENo Image%3C/text%3E%3C/svg%3E"} 
+                          className="w-full h-full object-cover" 
+                          alt="" 
+                          onError={(e) => {
+                            const fallback = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'%3E%3Crect width='300' height='450' fill='%23111'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='20' fill='%23555'%3ENo Image%3C/text%3E%3C/svg%3E";
+                            if (e.currentTarget.src !== fallback) {
+                              e.currentTarget.src = fallback;
+                            }
+                          }}
+                        />
                     </div>
                     <div className="flex justify-center w-full animate-in zoom-in-95 duration-1000">
-                        <FavoriteDetailsButton item={{ ...data.info, stream_id: id, type: 'series' }} />
+                        <FavoriteDetailsButton item={{ ...(data?.info || {}), stream_id: cleanId, name: displayTitle, cover: displayCover, type: 'series' }} />
                     </div>
                 </div>
                 
                 <div className="flex-1 max-w-4xl animate-in fade-in slide-in-from-right-10 duration-1000">
                     <h1 className="text-8xl font-extralight tracking-tight mb-8 leading-tight">
-                        {data.info.name.split(' ').map((word: string, i: number) => (
+                        {displayTitle.split(' ').map((word: string, i: number) => (
                             <span key={i} className={i % 2 === 0 ? '' : 'opacity-30 italic font-serif'}>{word} </span>
                         ))}
                     </h1>
@@ -492,7 +612,7 @@ export default function SeriesDetail() {
                                 <span className="bg-[#f5c518] text-black px-1 py-0.5 rounded-[2px] font-black tracking-normal text-[8px] shadow-sm">IMDb</span>
                                 <span className="text-[#f5c518] font-bold text-sm">{omdbRating}</span>
                             </div>
-                        ) : data.info.rating ? (
+                        ) : data?.info?.rating ? (
                             <div className="flex items-center space-x-2 bg-[#b5924d]/20 px-3 py-1 rounded-sm border border-[#b5924d]/30">
                                 <span className="text-[#b5924d]">★</span>
                                 <span className="text-[#b5924d] font-bold text-sm">{data.info.rating}</span>

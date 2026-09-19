@@ -84,7 +84,7 @@ interface DataState {
   removeProfileData: (profileId: string) => void;
 }
 
-const dataStorage = localforage.createInstance({
+export const dataStorage = localforage.createInstance({
   name: 'iptv-platinum',
   storeName: 'data'
 });

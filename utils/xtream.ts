@@ -29,7 +29,7 @@ class XtreamAPI {
     return `${serverUrl}/player_api.php?username=${username}&password=${password}`;
   }
 
-  public getStreamUrl(streamId: number, type: 'live' | 'movie' | 'series' = 'live', extension: string = 'm3u8') {
+  public getStreamUrl(streamId: number | string, type: 'live' | 'movie' | 'series' = 'live', extension: string = 'm3u8') {
     let { serverUrl, username, password } = useAuthStore.getState();
     
     // Si l'URL n'a pas de port (pas de :) et n'est pas https, on force le port 80
