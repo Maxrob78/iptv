@@ -11,6 +11,9 @@ import { useRatingStore } from '../../store/useRatingStore';
 import { ActorModal } from '../../components/ActorModal';
 import FavoriteModal from '../../components/FavoriteModal';
 import { fetchOmdbRating } from '../../utils/omdb';
+import { fetchLetterboxdRating } from '../../utils/letterboxd';
+import { fetchRegelegorillaRating } from '../../utils/regelegorilla';
+import { fetchTmdbDetails } from '../../utils/tmdb';
 
 export default function SeriesDetail() {
   const router = useRouter();
@@ -23,6 +26,8 @@ export default function SeriesDetail() {
   const [showRating, setShowRating] = useState(false);
   const [selectedActor, setSelectedActor] = useState<string | null>(null);
   const [omdbRating, setOmdbRating] = useState<string | null>(null);
+  const [letterboxdRating, setLetterboxdRating] = useState<string | null>(null);
+  const [regelegorillaRating, setRegelegorillaRating] = useState<string | null>(null);
 
   const cleanId = id ? (Array.isArray(id) ? String(id[0]) : String(id)) : '';
 
@@ -103,7 +108,7 @@ export default function SeriesDetail() {
   });
 
   const { ref, focusKey } = useFocusable({
-    focusKey: 'MAIN_CONTENT',
+    focusKey: 'SERIES_MAIN_CONTENT',
     saveLastFocusedChild: true,
     trackChildren: true,
     onArrowPress: (direction) => {
@@ -170,6 +175,15 @@ export default function SeriesDetail() {
     if (!cleanId) return;
     focusSet.current = false;
 
+    // Réinitialiser les états immédiatement pour éviter d'afficher les épisodes ou synopsis d'une autre série
+    setData(null);
+    setLoading(true);
+    setLoadError(null);
+    setSelectedSeason(null);
+    setOmdbRating(null);
+    setLetterboxdRating(null);
+    setRegelegorillaRating(null);
+
     if (cleanId.startsWith('local-')) {
       const realId = cleanId.replace('local-', '');
       const localItem = localLibrary.find((item: any) => item.id === realId);
@@ -204,33 +218,17 @@ export default function SeriesDetail() {
       // 1. Tenter de charger immédiatement depuis le cache IndexedDB
       try {
         const cached = await dataStorage.getItem<any>(`cached_series_${cleanId}`);
-        if (cached && isValidSeriesInfo(cached.info)) {
+        const hasFullEpisodes = cached && isValidSeriesInfo(cached.info) && cached.episodes && Object.keys(cached.episodes).length > 0;
+        if (hasFullEpisodes) {
           setData(cached);
-          const firstSeason = cached.seasons?.find((s: any) => cached.episodes?.[s.season_number]?.length > 0)?.season_number || "1";
+          const firstSeason = cached.seasons?.find((s: any) => cached.episodes?.[s.season_number]?.length > 0)?.season_number || Object.keys(cached.episodes)[0] || "1";
           setSelectedSeason(firstSeason);
-          setLoading(false);
-        } else if (fallbackSeries && fallbackSeries.name) {
-          setData((prev: any) => {
-            if (prev && isValidSeriesInfo(prev.info)) return prev;
-            return {
-              info: {
-                name: fallbackSeries.name,
-                cover: fallbackSeries.cover,
-                rating: fallbackSeries.rating,
-                releaseDate: fallbackSeries.year,
-                genre: '',
-                plot: ''
-              },
-              episodes: {},
-              seasons: []
-            };
-          });
           setLoading(false);
         } else {
           setLoading(true);
         }
       } catch {
-        if (!fallbackSeries) setLoading(true);
+        setLoading(true);
       }
 
       let isTimedOut = false;
@@ -259,8 +257,9 @@ export default function SeriesDetail() {
           }
 
           setData(seriesInfo);
-          dataStorage.setItem(`cached_series_${cleanId}`, seriesInfo).catch(() => {});
+          setLoading(false);
           setLoadError(null);
+          dataStorage.setItem(`cached_series_${cleanId}`, seriesInfo).catch(() => {});
 
           const seriesCover = seriesInfo.info?.cover || seriesInfo.info?.movie_image;
           if (seriesCover) {
@@ -283,35 +282,37 @@ export default function SeriesDetail() {
           }
 
           setSelectedSeason(initialSeason || (seriesInfo.seasons?.[0]?.season_number?.toString()) || "1");
+
+          // EN TEMPS RÉEL : Si synopsis ou casting manquant dans l'IPTV, enrichir via TMDB
+          const hasPlot = Boolean(seriesInfo.info.plot && seriesInfo.info.plot.trim());
+          const hasCast = Boolean(seriesInfo.info.cast && seriesInfo.info.cast.trim());
+          if (!hasPlot || !hasCast) {
+            const seriesName = seriesInfo.info.name || fallbackSeries?.name;
+            const seriesYear = seriesInfo.info.releaseDate || fallbackSeries?.year;
+            const seriesImdb = seriesInfo.info.imdb_id || seriesInfo.series_data?.imdb_id;
+            fetchTmdbDetails(seriesName, seriesYear, 'series', seriesImdb).then(tmdb => {
+              if (tmdb) {
+                setData((current: any) => {
+                  if (!current || !current.info) return current;
+                  const updatedInfo = {
+                    ...current.info,
+                    plot: current.info.plot?.trim() ? current.info.plot : (tmdb.plot || ''),
+                    cast: current.info.cast?.trim() ? current.info.cast : (tmdb.cast || ''),
+                    director: current.info.director?.trim() ? current.info.director : (tmdb.director || ''),
+                    genre: current.info.genre?.trim() ? current.info.genre : (tmdb.genre || ''),
+                    releaseDate: current.info.releaseDate?.trim() ? current.info.releaseDate : (tmdb.releaseDate || '')
+                  };
+                  const enriched = { ...current, info: updatedInfo };
+                  dataStorage.setItem(`cached_series_${cleanId}`, enriched).catch(() => {});
+                  return enriched;
+                });
+              }
+            });
+          }
         } else {
           console.warn("[SERIES] Réponse IPTV incomplète pour ID:", cleanId, seriesInfo);
-          setData((current: any) => {
-            if (current && isValidSeriesInfo(current.info)) return current;
-            if (fallbackSeries && fallbackSeries.name) {
-              return {
-                info: {
-                  name: fallbackSeries.name,
-                  cover: fallbackSeries.cover,
-                  rating: fallbackSeries.rating,
-                  releaseDate: fallbackSeries.year,
-                  genre: '',
-                  plot: ''
-                },
-                episodes: {},
-                seasons: []
-              };
-            }
-            throw new Error("Fiche introuvable ou métadonnées manquantes pour cette série.");
-          });
-        }
-      } catch (err: any) {
-        if (isTimedOut) return;
-        clearTimeout(timeoutId);
-        console.error("Erreur de récupération des détails de la série", err);
-        setData((current: any) => {
-          if (current && isValidSeriesInfo(current.info)) return current;
           if (fallbackSeries && fallbackSeries.name) {
-            return {
+            const fallbackData = {
               info: {
                 name: fallbackSeries.name,
                 cover: fallbackSeries.cover,
@@ -323,13 +324,71 @@ export default function SeriesDetail() {
               episodes: {},
               seasons: []
             };
+            setData(fallbackData);
+            setLoading(false);
+            fetchTmdbDetails(fallbackSeries.name, fallbackSeries.year, 'series').then(tmdb => {
+              if (tmdb) {
+                setData((current: any) => {
+                  if (!current || !current.info) return current;
+                  const updatedInfo = {
+                    ...current.info,
+                    plot: tmdb.plot || '',
+                    cast: tmdb.cast || '',
+                    director: tmdb.director || '',
+                    genre: tmdb.genre || '',
+                    releaseDate: tmdb.releaseDate || current.info.releaseDate || ''
+                  };
+                  const enriched = { ...current, info: updatedInfo };
+                  dataStorage.setItem(`cached_series_${cleanId}`, enriched).catch(() => {});
+                  return enriched;
+                });
+              }
+            });
+          } else {
+            throw new Error("Fiche introuvable ou métadonnées manquantes pour cette série.");
           }
-          setLoadError(err.message || "Impossible de charger les détails de la série auprès du serveur.");
-          return current;
-        });
-      } finally {
+        }
+      } catch (err: any) {
+        if (isTimedOut) return;
         clearTimeout(timeoutId);
-        setLoading(false);
+        console.error("Erreur de récupération des détails de la série", err);
+        if (fallbackSeries && fallbackSeries.name) {
+          const fallbackData = {
+            info: {
+              name: fallbackSeries.name,
+              cover: fallbackSeries.cover,
+              rating: fallbackSeries.rating,
+              releaseDate: fallbackSeries.year,
+              genre: '',
+              plot: ''
+            },
+            episodes: {},
+            seasons: []
+          };
+          setData(fallbackData);
+          setLoading(false);
+          fetchTmdbDetails(fallbackSeries.name, fallbackSeries.year, 'series').then(tmdb => {
+            if (tmdb) {
+              setData((current: any) => {
+                if (!current || !current.info) return current;
+                const updatedInfo = {
+                  ...current.info,
+                  plot: tmdb.plot || '',
+                  cast: tmdb.cast || '',
+                  director: tmdb.director || '',
+                  genre: tmdb.genre || '',
+                  releaseDate: tmdb.releaseDate || current.info.releaseDate || ''
+                };
+                const enriched = { ...current, info: updatedInfo };
+                dataStorage.setItem(`cached_series_${cleanId}`, enriched).catch(() => {});
+                return enriched;
+              });
+            }
+          });
+        } else {
+          setLoadError(err.message || "Impossible de charger les détails de la série auprès du serveur.");
+          setLoading(false);
+        }
       }
     };
     fetchData();
@@ -337,16 +396,20 @@ export default function SeriesDetail() {
 
   useEffect(() => {
     if (data && data.info) {
-      const getRating = async () => {
-        const rating = await fetchOmdbRating(
-            data.info.name, 
-            data.info.releaseDate || data.series_data?.year, 
-            'series',
-            data.info.imdb_id || data.series_data?.imdb_id
-        );
-        if (rating) setOmdbRating(rating);
-      };
-      getRating();
+      const title = data.info.name;
+      const year = data.info.releaseDate || data.series_data?.year;
+
+      const imdbId = data.info.imdb_id || data.series_data?.imdb_id;
+
+      // Lancer les 3 fetches de notes en parallele (chacune a son propre cache)
+      fetchOmdbRating(title, year, 'series', imdbId)
+        .then(r => { if (r) setOmdbRating(r); });
+
+      fetchLetterboxdRating(title, year, imdbId)
+        .then(r => { if (r) setLetterboxdRating(r); });
+
+      fetchRegelegorillaRating(title, year, imdbId)
+        .then(r => { if (r) setRegelegorillaRating(r); });
     }
   }, [data]);
 
@@ -618,6 +681,22 @@ export default function SeriesDetail() {
                                 <span className="text-[#b5924d] font-bold text-sm">{data.info.rating}</span>
                             </div>
                         ) : null}
+
+                        {/* Badge Letterboxd */}
+                        {letterboxdRating && (
+                            <div className="flex items-center space-x-2 bg-[#00c030]/15 px-3 py-1 rounded-sm border border-[#00c030]/30">
+                                <span className="bg-[#00c030] text-white px-1 py-0.5 rounded-[2px] font-black tracking-normal text-[8px] shadow-sm">LBD</span>
+                                <span className="text-[#00c030] font-bold text-sm">{letterboxdRating}</span>
+                            </div>
+                        )}
+
+                        {/* Badge Regelegorilla — note perso de l'utilisateur letterboxd.com/regelegorila */}
+                        {regelegorillaRating && (
+                            <div className="flex items-center space-x-2 bg-[#ff6b35]/15 px-3 py-1 rounded-sm border border-[#ff6b35]/30">
+                                <span className="bg-[#ff6b35] text-black px-1 py-0.5 rounded-[2px] font-black tracking-normal text-[8px] shadow-sm">RG</span>
+                                <span className="text-[#ff6b35] font-bold text-sm">{regelegorillaRating}</span>
+                            </div>
+                        )}
                         
                         {userRating && (
                             <div className="flex items-center space-x-2 bg-blue-500/20 px-3 py-1 rounded-sm border border-blue-500/30 cursor-pointer hover:bg-blue-500/30 transition" onClick={() => setShowRating(true)}>

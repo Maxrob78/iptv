@@ -79,6 +79,24 @@ export function Sidebar() {
             }}
           />
           <NavButton
+            customFocusKey="NAV_SERIES"
+            icon="🍿"
+            label="Séries"
+            active={router.pathname.includes('/series')}
+            onClick={() => {
+              if (router.pathname === '/series' || (router.pathname.includes('/series') && !router.pathname.includes('/series/'))) {
+                try {
+                  setFocus('SERIES_SEARCH');
+                } catch (e) {}
+                const main = document.querySelector('main');
+                if (main) main.scrollTop = 0;
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              } else {
+                router.push('/series');
+              }
+            }}
+          />
+          <NavButton
             customFocusKey="NAV_FAVORITES"
             icon="✨"
             label="Favoris"
@@ -147,6 +165,8 @@ function NavButton({ icon, label, active = false, onClick, isFirst, isLast, cust
         const path = window.location.pathname;
         if (path.includes('/movie/')) {
           setFocus('MOVIE_MAIN_CONTENT');
+        } else if (path.includes('/series/')) {
+          setFocus('SERIES_MAIN_CONTENT');
         } else if (path === '/movies' || path.includes('/movies')) {
           setFocus('MOVIE_SEARCH');
         } else if (path === '/series' || (path.includes('/series') && !path.includes('/series/'))) {

@@ -11,6 +11,9 @@ import { useRatingStore } from '../../store/useRatingStore';
 import { ActorModal } from '../../components/ActorModal';
 import FavoriteModal from '../../components/FavoriteModal';
 import { fetchOmdbRating } from '../../utils/omdb';
+import { fetchLetterboxdRating } from '../../utils/letterboxd';
+import { fetchRegelegorillaRating } from '../../utils/regelegorilla';
+import { fetchTmdbDetails } from '../../utils/tmdb';
 
 export default function MovieDetail() {
   const router = useRouter();
@@ -22,6 +25,8 @@ export default function MovieDetail() {
   const [showRating, setShowRating] = useState(false);
   const [selectedActor, setSelectedActor] = useState<string | null>(null);
   const [omdbRating, setOmdbRating] = useState<string | null>(null);
+  const [letterboxdRating, setLetterboxdRating] = useState<string | null>(null);
+  const [regelegorillaRating, setRegelegorillaRating] = useState<string | null>(null);
 
   const { getProfileData } = useDataStore();
   const { localLibrary } = getProfileData();
@@ -190,6 +195,14 @@ export default function MovieDetail() {
     if (!cleanId) return;
     focusSet.current = false;
 
+    // Réinitialiser les états immédiatement pour éviter d'afficher les données résiduelles d'un autre film
+    setData(null);
+    setLoading(true);
+    setLoadError(null);
+    setOmdbRating(null);
+    setLetterboxdRating(null);
+    setRegelegorillaRating(null);
+
     if (cleanId.startsWith('local-')) {
       const realId = cleanId.replace('local-', '');
       const localItem = localLibrary.find((item: any) => item.id === realId);
@@ -217,35 +230,15 @@ export default function MovieDetail() {
       // 1. Tenter de charger immédiatement depuis le cache IndexedDB
       try {
         const cached = await dataStorage.getItem<any>(`cached_vod_${cleanId}`);
-        if (cached && isValidMovieInfo(cached.info)) {
+        const hasFullInfo = cached && isValidMovieInfo(cached.info) && Boolean((cached.info.plot && cached.info.plot.trim()) || (cached.info.cast && cached.info.cast.trim()));
+        if (hasFullInfo) {
           setData(cached);
-          setLoading(false);
-        } else if (fallbackMovie && fallbackMovie.name) {
-          setData((prev: any) => {
-            if (prev && isValidMovieInfo(prev.info)) return prev;
-            return {
-              info: {
-                name: fallbackMovie.name,
-                cover: fallbackMovie.cover,
-                movie_image: fallbackMovie.cover,
-                rating: fallbackMovie.rating,
-                releaseDate: fallbackMovie.year,
-                plot: ''
-              },
-              movie_data: {
-                stream_id: cleanId,
-                name: fallbackMovie.name,
-                container_extension: fallbackMovie.container_extension,
-                stream_icon: fallbackMovie.cover
-              }
-            };
-          });
           setLoading(false);
         } else {
           setLoading(true);
         }
       } catch {
-        if (!fallbackMovie) setLoading(true);
+        setLoading(true);
       }
 
       let isTimedOut = false;
@@ -282,6 +275,7 @@ export default function MovieDetail() {
             };
           }
           setData(vodInfo);
+          setLoading(false);
           setLoadError(null);
           dataStorage.setItem(`cached_vod_${cleanId}`, vodInfo).catch(() => {});
 
@@ -289,43 +283,37 @@ export default function MovieDetail() {
           if (cover) {
             useDataStore.getState().updateItemCover(cleanId, cover);
           }
+
+          // EN TEMPS RÉEL : Si synopsis ou casting manquant dans l'IPTV, enrichir via TMDB
+          const hasPlot = Boolean(vodInfo.info.plot && vodInfo.info.plot.trim());
+          const hasCast = Boolean(vodInfo.info.cast && vodInfo.info.cast.trim());
+          if (!hasPlot || !hasCast) {
+            const filmName = vodInfo.info.name || fallbackMovie?.name;
+            const filmYear = vodInfo.info.releaseDate || fallbackMovie?.year;
+            const filmImdb = vodInfo.info.imdb_id || vodInfo.movie_data?.imdb_id;
+            fetchTmdbDetails(filmName, filmYear, 'movie', filmImdb).then(tmdb => {
+              if (tmdb) {
+                setData((current: any) => {
+                  if (!current || !current.info) return current;
+                  const updatedInfo = {
+                    ...current.info,
+                    plot: current.info.plot?.trim() ? current.info.plot : (tmdb.plot || ''),
+                    cast: current.info.cast?.trim() ? current.info.cast : (tmdb.cast || ''),
+                    director: current.info.director?.trim() ? current.info.director : (tmdb.director || ''),
+                    genre: current.info.genre?.trim() ? current.info.genre : (tmdb.genre || ''),
+                    releaseDate: current.info.releaseDate?.trim() ? current.info.releaseDate : (tmdb.releaseDate || '')
+                  };
+                  const enriched = { ...current, info: updatedInfo };
+                  dataStorage.setItem(`cached_vod_${cleanId}`, enriched).catch(() => {});
+                  return enriched;
+                });
+              }
+            });
+          }
         } else {
           console.warn("[VOD] Réponse IPTV incomplète ou vide pour ID:", cleanId, vodInfo);
-          setData((current: any) => {
-            if (current && isValidMovieInfo(current.info)) {
-              return current;
-            }
-            if (fallbackMovie && fallbackMovie.name) {
-              return {
-                info: {
-                  name: fallbackMovie.name,
-                  cover: fallbackMovie.cover,
-                  movie_image: fallbackMovie.cover,
-                  rating: fallbackMovie.rating,
-                  releaseDate: fallbackMovie.year,
-                  plot: ''
-                },
-                movie_data: {
-                  stream_id: cleanId,
-                  name: fallbackMovie.name,
-                  container_extension: fallbackMovie.container_extension,
-                  stream_icon: fallbackMovie.cover
-                }
-              };
-            }
-            throw new Error("Fiche introuvable ou métadonnées manquantes pour cette œuvre.");
-          });
-        }
-      } catch (err: any) {
-        if (isTimedOut) return;
-        clearTimeout(timeoutId);
-        console.error("Erreur de récupération des détails du film", err);
-        setData((current: any) => {
-          if (current && isValidMovieInfo(current.info)) {
-            return current;
-          }
           if (fallbackMovie && fallbackMovie.name) {
-            return {
+            const fallbackData = {
               info: {
                 name: fallbackMovie.name,
                 cover: fallbackMovie.cover,
@@ -341,13 +329,75 @@ export default function MovieDetail() {
                 stream_icon: fallbackMovie.cover
               }
             };
+            setData(fallbackData);
+            setLoading(false);
+            fetchTmdbDetails(fallbackMovie.name, fallbackMovie.year, 'movie').then(tmdb => {
+              if (tmdb) {
+                setData((current: any) => {
+                  if (!current || !current.info) return current;
+                  const updatedInfo = {
+                    ...current.info,
+                    plot: tmdb.plot || '',
+                    cast: tmdb.cast || '',
+                    director: tmdb.director || '',
+                    genre: tmdb.genre || '',
+                    releaseDate: tmdb.releaseDate || current.info.releaseDate || ''
+                  };
+                  const enriched = { ...current, info: updatedInfo };
+                  dataStorage.setItem(`cached_vod_${cleanId}`, enriched).catch(() => {});
+                  return enriched;
+                });
+              }
+            });
+          } else {
+            throw new Error("Fiche introuvable ou métadonnées manquantes pour cette œuvre.");
           }
-          setLoadError(err.message || "Impossible de charger les détails du film auprès du serveur.");
-          return current;
-        });
-      } finally {
+        }
+      } catch (err: any) {
+        if (isTimedOut) return;
         clearTimeout(timeoutId);
-        setLoading(false);
+        console.error("Erreur de récupération des détails du film", err);
+        if (fallbackMovie && fallbackMovie.name) {
+          const fallbackData = {
+            info: {
+              name: fallbackMovie.name,
+              cover: fallbackMovie.cover,
+              movie_image: fallbackMovie.cover,
+              rating: fallbackMovie.rating,
+              releaseDate: fallbackMovie.year,
+              plot: ''
+            },
+            movie_data: {
+              stream_id: cleanId,
+              name: fallbackMovie.name,
+              container_extension: fallbackMovie.container_extension,
+              stream_icon: fallbackMovie.cover
+            }
+          };
+          setData(fallbackData);
+          setLoading(false);
+          fetchTmdbDetails(fallbackMovie.name, fallbackMovie.year, 'movie').then(tmdb => {
+            if (tmdb) {
+              setData((current: any) => {
+                if (!current || !current.info) return current;
+                const updatedInfo = {
+                  ...current.info,
+                  plot: tmdb.plot || '',
+                  cast: tmdb.cast || '',
+                  director: tmdb.director || '',
+                  genre: tmdb.genre || '',
+                  releaseDate: tmdb.releaseDate || current.info.releaseDate || ''
+                };
+                const enriched = { ...current, info: updatedInfo };
+                dataStorage.setItem(`cached_vod_${cleanId}`, enriched).catch(() => {});
+                return enriched;
+              });
+            }
+          });
+        } else {
+          setLoadError(err.message || "Impossible de charger les détails du film auprès du serveur.");
+          setLoading(false);
+        }
       }
     };
     fetchData();
@@ -355,16 +405,20 @@ export default function MovieDetail() {
 
   useEffect(() => {
     if (data && data.info) {
-      const getRating = async () => {
-        const rating = await fetchOmdbRating(
-            data.info.name, 
-            data.info.releaseDate || data.movie_data?.year, 
-            'movie',
-            data.info.imdb_id || data.movie_data?.imdb_id
-        );
-        if (rating) setOmdbRating(rating);
-      };
-      getRating();
+      const title = data.info.name;
+      const year = data.info.releaseDate || data.movie_data?.year;
+
+      const imdbId = data.info.imdb_id || data.movie_data?.imdb_id;
+
+      // Lancer les 3 fetches de notes en parallele (chacune a son propre cache)
+      fetchOmdbRating(title, year, 'movie', imdbId)
+        .then(r => { if (r) setOmdbRating(r); });
+
+      fetchLetterboxdRating(title, year, imdbId)
+        .then(r => { if (r) setLetterboxdRating(r); });
+
+      fetchRegelegorillaRating(title, year, imdbId)
+        .then(r => { if (r) setRegelegorillaRating(r); });
     }
   }, [data]);
 
@@ -639,6 +693,22 @@ export default function MovieDetail() {
                       <span className="text-[#b5924d] font-bold text-sm">{data.info.rating}</span>
                     </div>
                   ) : null}
+
+                  {/* Badge Letterboxd */}
+                  {letterboxdRating && (
+                    <div className="flex items-center space-x-2 bg-[#00c030]/15 px-3 py-1 rounded-sm border border-[#00c030]/30">
+                      <span className="bg-[#00c030] text-white px-1 py-0.5 rounded-[2px] font-black tracking-normal text-[8px] shadow-sm">LBD</span>
+                      <span className="text-[#00c030] font-bold text-sm">{letterboxdRating}</span>
+                    </div>
+                  )}
+
+                  {/* Badge Regelegorilla */}
+                  {regelegorillaRating && (
+                    <div className="flex items-center space-x-2 bg-[#ff6b35]/15 px-3 py-1 rounded-sm border border-[#ff6b35]/30">
+                      <span className="bg-[#ff6b35] text-black px-1 py-0.5 rounded-[2px] font-black tracking-normal text-[8px] shadow-sm">RG</span>
+                      <span className="text-[#ff6b35] font-bold text-sm">{regelegorillaRating}</span>
+                    </div>
+                  )}
                   {userRating && (
                     <div className="flex items-center space-x-2 bg-blue-500/20 px-3 py-1 rounded-sm border border-blue-500/30 cursor-pointer hover:bg-blue-500/30 transition" onClick={() => setShowRating(true)}>
                         <span className="text-blue-400">★</span>
