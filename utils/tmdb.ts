@@ -72,6 +72,39 @@ export const tmdbApi = {
 };
 
 /**
+ * Nettoie le titre d'un film ou d'une série pour maximiser les correspondances TMDB.
+ * Gère les préfixes IPTV, les années collées au titre (ex: "Zombieland: Double Tap - 2019"),
+ * les tags techniques (4K, MULTI, VOSTFR, etc.) et extrait l'année réelle.
+ */
+export function cleanMovieTitleForTmdb(rawTitle: string, inputYear?: string): { cleanTitle: string; year: string | null } {
+  let title = (rawTitle || '').trim();
+  let extractedYear: string | null = null;
+
+  // 1. Supprimer les préfixes IPTV comme [FR], |FR|, FR|, 4K|, (VOD), etc.
+  title = title.replace(/^(\[.*?\]|\|.*?\||[^|]*?\|\s*|\(.*?\)|\{.*?\})\s*/i, '').trim();
+
+  // 2. Extraire l'année dans le titre si présente (ex: " - 2019", "(2019)", "[2019]", " 2019")
+  const yearMatch = title.match(/(?:[-_\s\(\[])(19\d{2}|20\d{2})(?:[-_\s\)\]]|$)/);
+  if (yearMatch) {
+    extractedYear = yearMatch[1];
+    title = title.replace(yearMatch[0], ' ');
+  }
+
+  // 3. Supprimer les tags de format, qualité et langue courants dans l'IPTV
+  const tagsRegex = /\b(4k|uhd|1080p|720p|480p|hd|fhd|bluray|bdrip|webrip|dvdrip|hdr|10bit|x264|x265|hevc|multi|truefrench|vff|vf|vostfr|vost|vo|french|remastered|extended|directors cut|uncut)\b/gi;
+  title = title.replace(tagsRegex, '');
+
+  // 4. Nettoyer les parenthèses, crochets et séparateurs orphelins
+  title = title.replace(/[\(\[\{\)\]\}]/g, ' ');
+  title = title.replace(/\s*[-–_:]+\s*$/, '');
+  title = title.replace(/^\s*[-–_:]+\s*/, '');
+  title = title.replace(/\s+/g, ' ').trim();
+
+  const finalYear = inputYear ? (inputYear.match(/\d{4}/)?.[0] || extractedYear) : extractedYear;
+  return { cleanTitle: title, year: finalYear };
+}
+
+/**
  * Récupère en temps réel les détails complets d'un film ou d'une série (synopsis français, casting, réalisateur, etc.)
  * Utilisé pour enrichir instantanément la fiche si le serveur IPTV n'a pas renvoyé de synopsis ou d'acteurs.
  */
@@ -84,18 +117,12 @@ export async function fetchTmdbDetails(
   if (!TMDB_API_KEY || (!title && !imdbId)) return null;
 
   try {
-    let cleanTitle = (title || '').trim();
-    cleanTitle = cleanTitle.replace(/^(\[.*?\]|\|.*?\||[^|]*?\|\s*|\(.*?\)|\{.*?\})\s*/i, '').trim();
-    if (cleanTitle.includes('(')) {
-      cleanTitle = cleanTitle.split('(')[0].trim();
-    }
-    const cleanYear = year ? year.match(/\d{4}/)?.[0] : null;
-
+    const { cleanTitle, year: cleanYear } = cleanMovieTitleForTmdb(title, year);
     let targetId: number | null = null;
     let endpointType: 'movie' | 'tv' = type === 'series' ? 'tv' : 'movie';
 
-    // 1. Si on a un IMDb ID, utiliser /find/<imdbId> (résolution 100% exacte)
-    if (imdbId && imdbId.startsWith('tt')) {
+    // 1. Si on a un IMDb ID valide, utiliser /find/<imdbId> (résolution 100% exacte)
+    if (imdbId && typeof imdbId === 'string' && imdbId.startsWith('tt')) {
       try {
         const findRes = await fetch(`${BASE_URL}/find/${imdbId}?api_key=${TMDB_API_KEY}&external_source=imdb_id&language=fr-FR`);
         if (findRes.ok) {
@@ -116,8 +143,9 @@ export async function fetchTmdbDetails(
       }
     }
 
-    // 2. Si pas trouvé par IMDb ID, chercher par titre
+    // 2. Recherche textuelle par titre
     if (!targetId && cleanTitle) {
+      // Étape 2A : Recherche avec le titre nettoyé et l'année
       let searchUrl = `${BASE_URL}/search/${endpointType}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(cleanTitle)}&language=fr-FR`;
       if (cleanYear) {
         searchUrl += endpointType === 'movie' ? `&year=${cleanYear}` : `&first_air_date_year=${cleanYear}`;
@@ -126,9 +154,26 @@ export async function fetchTmdbDetails(
       let res = await fetch(searchUrl);
       let data = await res.json();
 
+      // Étape 2B : Si 0 résultat et qu'on avait filtré par année, chercher sans l'année
       if ((!data.results || data.results.length === 0) && cleanYear) {
         res = await fetch(`${BASE_URL}/search/${endpointType}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(cleanTitle)}&language=fr-FR`);
         data = await res.json();
+      }
+
+      // Étape 2C : Si toujours 0 résultat et que le titre contient un sous-titre (ex: "Zombieland: Double Tap" -> "Zombieland")
+      if ((!data.results || data.results.length === 0) && (cleanTitle.includes(':') || cleanTitle.includes(' - '))) {
+        const primaryTitle = cleanTitle.split(/[:\-]/)[0].trim();
+        if (primaryTitle.length >= 3) {
+          let fallbackUrl = `${BASE_URL}/search/${endpointType}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(primaryTitle)}&language=fr-FR`;
+          if (cleanYear) {
+            fallbackUrl += endpointType === 'movie' ? `&year=${cleanYear}` : `&first_air_date_year=${cleanYear}`;
+          }
+          const fallbackRes = await fetch(fallbackUrl);
+          const fallbackData = await fallbackRes.json();
+          if (fallbackData.results && fallbackData.results.length > 0) {
+            data = fallbackData;
+          }
+        }
       }
 
       if (data.results && data.results.length > 0) {
@@ -138,10 +183,24 @@ export async function fetchTmdbDetails(
 
     if (!targetId) return null;
 
-    // 3. Récupérer détails complets avec crédits
+    // 3. Récupérer détails complets avec crédits en français
     const detailsRes = await fetch(`${BASE_URL}/${endpointType}/${targetId}?api_key=${TMDB_API_KEY}&append_to_response=credits&language=fr-FR`);
     if (!detailsRes.ok) return null;
     const item = await detailsRes.json();
+
+    let plot = item.overview || '';
+    // Si le synopsis français est vide, tenter de récupérer la description en VO pour ne pas laisser vide
+    if (!plot.trim()) {
+      try {
+        const enRes = await fetch(`${BASE_URL}/${endpointType}/${targetId}?api_key=${TMDB_API_KEY}&language=en-US`);
+        if (enRes.ok) {
+          const enData = await enRes.json();
+          if (enData.overview) {
+            plot = enData.overview;
+          }
+        }
+      } catch {}
+    }
 
     const cast = (item.credits?.cast || []).slice(0, 10).map((c: any) => c.name).join(', ');
     let director = '';
@@ -152,8 +211,7 @@ export async function fetchTmdbDetails(
     }
 
     const genre = (item.genres || []).map((g: any) => g.name).join(', ');
-    const plot = item.overview || '';
-    const releaseDate = item.release_date || item.first_air_date || '';
+    const releaseDate = item.release_date || item.first_air_date || cleanYear || '';
     const backdropUrl = item.backdrop_path ? `https://image.tmdb.org/t/p/original${item.backdrop_path}` : undefined;
     const coverUrl = item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined;
 

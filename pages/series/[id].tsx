@@ -216,8 +216,10 @@ export default function SeriesDetail() {
       setLoadError(null);
 
       // 1. Tenter de charger immédiatement depuis le cache IndexedDB
+      let currentCached: any = null;
       try {
         const cached = await dataStorage.getItem<any>(`cached_series_${cleanId}`);
+        currentCached = cached;
         const hasFullEpisodes = cached && isValidSeriesInfo(cached.info) && cached.episodes && Object.keys(cached.episodes).length > 0;
         if (hasFullEpisodes) {
           setData(cached);
@@ -249,19 +251,42 @@ export default function SeriesDetail() {
         clearTimeout(timeoutId);
 
         if (seriesInfo && isValidSeriesInfo(seriesInfo.info)) {
-          if (!seriesInfo.info.name && fallbackSeries?.name) {
-            seriesInfo.info.name = fallbackSeries.name;
-          }
-          if (!seriesInfo.info.cover && !seriesInfo.info.movie_image && fallbackSeries?.cover) {
-            seriesInfo.info.cover = fallbackSeries.cover;
-          }
+          const existingInfo = currentCached?.info || {};
+          const existingPlot = (existingInfo.plot && existingInfo.plot.trim()) || '';
+          const existingCast = (existingInfo.cast && existingInfo.cast.trim()) || '';
+          const existingDirector = (existingInfo.director && existingInfo.director.trim()) || '';
+          const existingGenre = (existingInfo.genre && existingInfo.genre.trim()) || '';
+          const existingReleaseDate = (existingInfo.releaseDate && existingInfo.releaseDate.trim()) || '';
 
-          setData(seriesInfo);
+          const sPlot = (seriesInfo.info.plot && seriesInfo.info.plot.trim()) || '';
+          const sCast = (seriesInfo.info.cast && seriesInfo.info.cast.trim()) || '';
+          const sDirector = (seriesInfo.info.director && seriesInfo.info.director.trim()) || '';
+          const sGenre = (seriesInfo.info.genre && seriesInfo.info.genre.trim()) || '';
+          const sReleaseDate = (seriesInfo.info.releaseDate && seriesInfo.info.releaseDate.trim()) || '';
+
+          const mergedInfo = {
+            ...seriesInfo.info,
+            name: seriesInfo.info.name || existingInfo.name || fallbackSeries?.name,
+            plot: sPlot || existingPlot,
+            cast: sCast || existingCast,
+            director: sDirector || existingDirector,
+            genre: sGenre || existingGenre,
+            releaseDate: sReleaseDate || existingReleaseDate || fallbackSeries?.year || '',
+            cover: seriesInfo.info.cover || seriesInfo.info.movie_image || existingInfo.cover || existingInfo.movie_image || fallbackSeries?.cover,
+            movie_image: seriesInfo.info.movie_image || seriesInfo.info.cover || existingInfo.movie_image || existingInfo.cover || fallbackSeries?.cover,
+          };
+
+          const mergedSeries = {
+            ...seriesInfo,
+            info: mergedInfo
+          };
+
+          setData(mergedSeries);
           setLoading(false);
           setLoadError(null);
-          dataStorage.setItem(`cached_series_${cleanId}`, seriesInfo).catch(() => {});
+          dataStorage.setItem(`cached_series_${cleanId}`, mergedSeries).catch(() => {});
 
-          const seriesCover = seriesInfo.info?.cover || seriesInfo.info?.movie_image;
+          const seriesCover = mergedInfo.cover || mergedInfo.movie_image;
           if (seriesCover) {
             useDataStore.getState().updateItemCover(cleanId, seriesCover);
           }
@@ -966,7 +991,21 @@ function FocusableEpisodeCard({ ep, history, onClick, focusKey: customFocusKey, 
       if (direction === 'up') {
         const columns = window.innerWidth >= 1280 ? 3 : window.innerWidth >= 768 ? 2 : 1;
         if (index < columns) {
-          setFocus(`SEASON_${ep.season || 1}`);
+          // 1. Chercher si un bouton de saison existe dans le DOM
+          const targetKey = ep.season ? `SEASON_${ep.season}` : '';
+          const seasonBtn = (targetKey ? document.querySelector(`[data-focus-key="${targetKey}"]`) : null) ||
+                            document.querySelector(`[data-focus-key^="SEASON_"]`);
+
+          if (seasonBtn) {
+            const fk = seasonBtn.getAttribute('data-focus-key');
+            if (fk) {
+              setFocus(fk);
+              return false;
+            }
+          }
+
+          // 2. Si aucune saison n'est affichée (ex: série sans saisons), remonter directement sur le coeur / favoris
+          setFocus('RATE_SERIES_BTN');
           return false;
         }
       }
@@ -1039,7 +1078,11 @@ function FavoriteDetailsButton({ item }: { item: any }) {
   const { ref, focused } = useFocusable({
     focusKey: 'RATE_SERIES_BTN',
     onEnterPress: () => setShowFavModal(true),
-    onFocus: () => setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50),
+    onFocus: () => setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const main = document.querySelector('main');
+      if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50),
     onArrowPress: (direction) => {
       if (direction === 'left') {
         setFocus('NAV_SERIES');

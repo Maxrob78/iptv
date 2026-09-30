@@ -228,8 +228,10 @@ export default function MovieDetail() {
       setLoadError(null);
 
       // 1. Tenter de charger immédiatement depuis le cache IndexedDB
+      let currentCached: any = null;
       try {
         const cached = await dataStorage.getItem<any>(`cached_vod_${cleanId}`);
+        currentCached = cached;
         const hasFullInfo = cached && isValidMovieInfo(cached.info) && Boolean((cached.info.plot && cached.info.plot.trim()) || (cached.info.cast && cached.info.cast.trim()));
         if (hasFullInfo) {
           setData(cached);
@@ -259,38 +261,61 @@ export default function MovieDetail() {
         clearTimeout(timeoutId);
 
         if (vodInfo && isValidMovieInfo(vodInfo.info)) {
-          if (!vodInfo.info.name && fallbackMovie?.name) {
-            vodInfo.info.name = fallbackMovie.name;
-          }
-          if (!vodInfo.info.cover && !vodInfo.info.movie_image && fallbackMovie?.cover) {
-            vodInfo.info.cover = fallbackMovie.cover;
-            vodInfo.info.movie_image = fallbackMovie.cover;
-          }
-          if (!vodInfo.movie_data) {
-            vodInfo.movie_data = {
+          // Fusion intelligente : Ne JAMAIS écraser un synopsis, casting ou réalisateur déjà en cache par du vide
+          const existingInfo = currentCached?.info || {};
+          const existingPlot = (existingInfo.plot && existingInfo.plot.trim()) || '';
+          const existingCast = (existingInfo.cast && existingInfo.cast.trim()) || '';
+          const existingDirector = (existingInfo.director && existingInfo.director.trim()) || '';
+          const existingGenre = (existingInfo.genre && existingInfo.genre.trim()) || '';
+          const existingReleaseDate = (existingInfo.releaseDate && existingInfo.releaseDate.trim()) || '';
+
+          const vodPlot = (vodInfo.info.plot && vodInfo.info.plot.trim()) || '';
+          const vodCast = (vodInfo.info.cast && vodInfo.info.cast.trim()) || '';
+          const vodDirector = (vodInfo.info.director && vodInfo.info.director.trim()) || '';
+          const vodGenre = (vodInfo.info.genre && vodInfo.info.genre.trim()) || '';
+          const vodReleaseDate = (vodInfo.info.releaseDate && vodInfo.info.releaseDate.trim()) || '';
+
+          const mergedInfo = {
+            ...vodInfo.info,
+            name: vodInfo.info.name || existingInfo.name || fallbackMovie?.name,
+            plot: vodPlot || existingPlot,
+            cast: vodCast || existingCast,
+            director: vodDirector || existingDirector,
+            genre: vodGenre || existingGenre,
+            releaseDate: vodReleaseDate || existingReleaseDate || fallbackMovie?.year || '',
+            cover: vodInfo.info.cover || vodInfo.info.movie_image || existingInfo.cover || existingInfo.movie_image || fallbackMovie?.cover,
+            movie_image: vodInfo.info.movie_image || vodInfo.info.cover || existingInfo.movie_image || existingInfo.cover || fallbackMovie?.cover,
+          };
+
+          const mergedVod = {
+            ...vodInfo,
+            info: mergedInfo,
+            movie_data: {
+              ...(vodInfo.movie_data || {}),
               stream_id: cleanId,
-              name: vodInfo.info.name || fallbackMovie?.name,
-              container_extension: fallbackMovie?.container_extension || 'mkv',
-              stream_icon: vodInfo.info.cover || fallbackMovie?.cover
-            };
-          }
-          setData(vodInfo);
+              name: mergedInfo.name || fallbackMovie?.name,
+              container_extension: vodInfo.movie_data?.container_extension || fallbackMovie?.container_extension || 'mkv',
+              stream_icon: mergedInfo.cover || fallbackMovie?.cover
+            }
+          };
+
+          setData(mergedVod);
           setLoading(false);
           setLoadError(null);
-          dataStorage.setItem(`cached_vod_${cleanId}`, vodInfo).catch(() => {});
+          dataStorage.setItem(`cached_vod_${cleanId}`, mergedVod).catch(() => {});
 
-          const cover = vodInfo.info.cover || vodInfo.info.movie_image;
+          const cover = mergedInfo.cover || mergedInfo.movie_image;
           if (cover) {
             useDataStore.getState().updateItemCover(cleanId, cover);
           }
 
-          // EN TEMPS RÉEL : Si synopsis ou casting manquant dans l'IPTV, enrichir via TMDB
-          const hasPlot = Boolean(vodInfo.info.plot && vodInfo.info.plot.trim());
-          const hasCast = Boolean(vodInfo.info.cast && vodInfo.info.cast.trim());
+          // EN TEMPS RÉEL : Si synopsis ou casting encore manquant, enrichir via TMDB
+          const hasPlot = Boolean(mergedInfo.plot && mergedInfo.plot.trim());
+          const hasCast = Boolean(mergedInfo.cast && mergedInfo.cast.trim());
           if (!hasPlot || !hasCast) {
-            const filmName = vodInfo.info.name || fallbackMovie?.name;
-            const filmYear = vodInfo.info.releaseDate || fallbackMovie?.year;
-            const filmImdb = vodInfo.info.imdb_id || vodInfo.movie_data?.imdb_id;
+            const filmName = mergedInfo.name || fallbackMovie?.name;
+            const filmYear = mergedInfo.releaseDate || fallbackMovie?.year;
+            const filmImdb = mergedInfo.imdb_id || vodInfo.movie_data?.imdb_id;
             fetchTmdbDetails(filmName, filmYear, 'movie', filmImdb).then(tmdb => {
               if (tmdb) {
                 setData((current: any) => {
@@ -313,14 +338,18 @@ export default function MovieDetail() {
         } else {
           console.warn("[VOD] Réponse IPTV incomplète ou vide pour ID:", cleanId, vodInfo);
           if (fallbackMovie && fallbackMovie.name) {
+            const existingInfo = currentCached?.info || {};
             const fallbackData = {
               info: {
                 name: fallbackMovie.name,
                 cover: fallbackMovie.cover,
                 movie_image: fallbackMovie.cover,
                 rating: fallbackMovie.rating,
-                releaseDate: fallbackMovie.year,
-                plot: ''
+                releaseDate: fallbackMovie.year || existingInfo.releaseDate || '',
+                plot: existingInfo.plot || '',
+                cast: existingInfo.cast || '',
+                director: existingInfo.director || '',
+                genre: existingInfo.genre || ''
               },
               movie_data: {
                 stream_id: cleanId,
@@ -337,11 +366,11 @@ export default function MovieDetail() {
                   if (!current || !current.info) return current;
                   const updatedInfo = {
                     ...current.info,
-                    plot: tmdb.plot || '',
-                    cast: tmdb.cast || '',
-                    director: tmdb.director || '',
-                    genre: tmdb.genre || '',
-                    releaseDate: tmdb.releaseDate || current.info.releaseDate || ''
+                    plot: current.info.plot?.trim() ? current.info.plot : (tmdb.plot || ''),
+                    cast: current.info.cast?.trim() ? current.info.cast : (tmdb.cast || ''),
+                    director: current.info.director?.trim() ? current.info.director : (tmdb.director || ''),
+                    genre: current.info.genre?.trim() ? current.info.genre : (tmdb.genre || ''),
+                    releaseDate: current.info.releaseDate?.trim() ? current.info.releaseDate : (tmdb.releaseDate || '')
                   };
                   const enriched = { ...current, info: updatedInfo };
                   dataStorage.setItem(`cached_vod_${cleanId}`, enriched).catch(() => {});
@@ -358,14 +387,18 @@ export default function MovieDetail() {
         clearTimeout(timeoutId);
         console.error("Erreur de récupération des détails du film", err);
         if (fallbackMovie && fallbackMovie.name) {
+          const existingInfo = currentCached?.info || {};
           const fallbackData = {
             info: {
               name: fallbackMovie.name,
               cover: fallbackMovie.cover,
               movie_image: fallbackMovie.cover,
               rating: fallbackMovie.rating,
-              releaseDate: fallbackMovie.year,
-              plot: ''
+              releaseDate: fallbackMovie.year || existingInfo.releaseDate || '',
+              plot: existingInfo.plot || '',
+              cast: existingInfo.cast || '',
+              director: existingInfo.director || '',
+              genre: existingInfo.genre || ''
             },
             movie_data: {
               stream_id: cleanId,
@@ -382,11 +415,11 @@ export default function MovieDetail() {
                 if (!current || !current.info) return current;
                 const updatedInfo = {
                   ...current.info,
-                  plot: tmdb.plot || '',
-                  cast: tmdb.cast || '',
-                  director: tmdb.director || '',
-                  genre: tmdb.genre || '',
-                  releaseDate: tmdb.releaseDate || current.info.releaseDate || ''
+                  plot: current.info.plot?.trim() ? current.info.plot : (tmdb.plot || ''),
+                  cast: current.info.cast?.trim() ? current.info.cast : (tmdb.cast || ''),
+                  director: current.info.director?.trim() ? current.info.director : (tmdb.director || ''),
+                  genre: current.info.genre?.trim() ? current.info.genre : (tmdb.genre || ''),
+                  releaseDate: current.info.releaseDate?.trim() ? current.info.releaseDate : (tmdb.releaseDate || '')
                 };
                 const enriched = { ...current, info: updatedInfo };
                 dataStorage.setItem(`cached_vod_${cleanId}`, enriched).catch(() => {});
