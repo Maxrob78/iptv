@@ -42,9 +42,22 @@ export default function Home() {
 
   useEffect(() => {
     setMounted(true);
-    // On force le focus sur le bouton principal après un court instant
+    const prevRoute = (window as any).__previousRoute || (typeof window !== 'undefined' ? sessionStorage.getItem('__previousRoute') : null);
+    const isFromDetail = prevRoute === '/movie/[id]' || prevRoute === '/series/[id]' || prevRoute === '/player/[id]' ||
+      (typeof prevRoute === 'string' && (prevRoute.startsWith('/movie/') || prevRoute.startsWith('/series/') || prevRoute.startsWith('/player/')));
+
+    if (!isFromDetail) {
+      (window as any).__lastFocusedHomeKey = null;
+    }
+
+    const targetKey = (isFromDetail && (window as any).__lastFocusedHomeKey) ? (window as any).__lastFocusedHomeKey : 'HERO_RESUME';
+
     setTimeout(() => {
-      setFocus('HERO_RESUME');
+      try {
+        setFocus(targetKey);
+      } catch (e) {
+        try { setFocus('HERO_RESUME'); } catch (err) {}
+      }
     }, 200);
     const getGroupedHistory = (historyObj: any) => {
       const grouped = new Map();
@@ -594,6 +607,7 @@ function FocusableHeroButton({ children, onClick, primary, focusKey: customFocus
       return true;
     },
     onFocus: () => {
+      (window as any).__lastFocusedHomeKey = focusKey;
       if (!(window as any).isMouseFocus) {
         setTimeout(() => {
           window.scrollTo({ top: 0, behavior: 'auto' });
@@ -765,6 +779,7 @@ function FocusableCard({ item, onClick, onRemove, isChannel, isHistory, customFo
       return true;
     },
     onFocus: () => {
+      (window as any).__lastFocusedHomeKey = focusKey;
       if (!(window as any).isMouseFocus) {
         ref.current.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
       }

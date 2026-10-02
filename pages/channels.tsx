@@ -7,6 +7,8 @@ import { FavoriteButton } from '../components/FavoriteButton';
 import FavoriteModal from '../components/FavoriteModal';
 import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spatial-navigation';
 
+let lastFocusedChannelKey: string | null = null;
+
 export default function Channels() {
   const router = useRouter();
   const { channels, setChannels, checkAndClearCache } = useDataStore();
@@ -68,9 +70,27 @@ export default function Channels() {
 
   useEffect(() => {
     checkAndClearCache();
-    setTimeout(() => {
-      setFocus('CHANNEL_SEARCH');
-    }, 200);
+    const prevRoute = (window as any).__previousRoute || (typeof window !== 'undefined' ? sessionStorage.getItem('__previousRoute') : null);
+    const isFromPlayer = prevRoute === '/player/[id]' || (typeof prevRoute === 'string' && prevRoute.startsWith('/player/'));
+
+    if (!isFromPlayer) {
+      lastFocusedChannelKey = null;
+      (window as any).__lastFocusedChannelKey = null;
+    } else if (lastFocusedChannelKey) {
+      (window as any).__lastFocusedChannelKey = lastFocusedChannelKey;
+    }
+
+    const targetKey = (isFromPlayer && lastFocusedChannelKey) ? lastFocusedChannelKey : 'CHANNEL_SEARCH';
+
+    const tryFocus = () => {
+      try {
+        setFocus(targetKey);
+      } catch (e) {
+        try { setFocus('CHANNEL_SEARCH'); } catch (err) {}
+      }
+    };
+
+    const timers = [50, 150, 300, 500].map(d => setTimeout(tryFocus, d));
     const fetchData = async () => {
       if (channels.length > 0) return;
 
@@ -86,6 +106,10 @@ export default function Channels() {
     };
 
     fetchData();
+
+    return () => {
+      timers.forEach(t => clearTimeout(t));
+    };
   }, [channels.length, setChannels, checkAndClearCache]);
 
   const filteredChannels = useMemo(() => {
@@ -207,6 +231,8 @@ function FocusableInput({ value, onChange, placeholder, containerRef }: any) {
       return true;
     },
     onFocus: () => {
+      lastFocusedChannelKey = focusKey;
+      (window as any).__lastFocusedChannelKey = focusKey;
       if (!(window as any).isMouseFocus) {
         setTimeout(() => {
           // 1. Remonter le conteneur spécifique
@@ -278,6 +304,8 @@ function FocusableChannel({ ch, idx, onClick, onLongPress }: any) {
   const { ref, focused, focusKey } = useFocusable({
     focusKey: `CHANNEL_${ch.stream_id}`,
     onFocus: () => {
+      lastFocusedChannelKey = focusKey;
+      (window as any).__lastFocusedChannelKey = focusKey;
       if (!(window as any).isMouseFocus) {
         ref.current?.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
       }

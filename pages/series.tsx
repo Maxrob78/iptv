@@ -12,7 +12,7 @@ let lastFocusedSeriesKey: string | null = null;
 
 export default function Series() {
   const router = useRouter();
-  const { series, setSeries, checkAndClearCache } = useDataStore();
+  const { series, setSeries, checkAndClearCache, hydrateHeavyData } = useDataStore();
   const [loading, setLoading] = useState(series.length === 0);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -60,15 +60,35 @@ export default function Series() {
 
   useEffect(() => {
     checkAndClearCache();
-    setTimeout(() => {
-      if (lastFocusedSeriesKey) {
-        setFocus(lastFocusedSeriesKey);
-      } else {
-        setFocus('SERIES_SEARCH');
+    const prevRoute = (window as any).__previousRoute || (typeof window !== 'undefined' ? sessionStorage.getItem('__previousRoute') : null);
+    const isFromDetail = prevRoute === '/series/[id]' || prevRoute === '/player/[id]' ||
+      (typeof prevRoute === 'string' && (prevRoute.startsWith('/series/') || prevRoute.startsWith('/player/')));
+
+    if (!isFromDetail) {
+      lastFocusedSeriesKey = null;
+      (window as any).__lastFocusedSeriesKey = null;
+    } else if (lastFocusedSeriesKey) {
+      (window as any).__lastFocusedSeriesKey = lastFocusedSeriesKey;
+    }
+
+    const targetKey = (isFromDetail && lastFocusedSeriesKey) ? lastFocusedSeriesKey : 'SERIES_SEARCH';
+
+    const tryFocus = () => {
+      try {
+        setFocus(targetKey);
+      } catch (e) {
+        try { setFocus('SERIES_SEARCH'); } catch (err) {}
       }
-    }, 200);
+    };
+
+    const timers = [50, 150, 300, 500].map(d => setTimeout(tryFocus, d));
+
     const fetchData = async () => {
-      if (series.length > 0) return;
+      await hydrateHeavyData();
+      if (useDataStore.getState().series.length > 0) {
+        setLoading(false);
+        return;
+      }
 
       try {
         setLoading(true);
@@ -103,7 +123,11 @@ export default function Series() {
     };
 
     fetchData();
-  }, [series.length, setSeries, checkAndClearCache]);
+
+    return () => {
+      timers.forEach(t => clearTimeout(t));
+    };
+  }, [series.length, setSeries, checkAndClearCache, hydrateHeavyData]);
 
   const filteredSeries = useMemo(() => {
     if (!debouncedSearch) return series.slice(0, renderLimit);
@@ -202,6 +226,7 @@ function FocusableInput({ value, onChange, placeholder, containerRef }: any) {
     },
     onFocus: () => {
       lastFocusedSeriesKey = focusKey;
+      (window as any).__lastFocusedSeriesKey = focusKey;
       if (!(window as any).isMouseFocus) {
         setTimeout(() => {
           // 1. Remonter le conteneur spécifique
@@ -267,6 +292,7 @@ function FocusableSeriesCard({ s, idx, onClick, onLongPress }: any) {
     focusKey: `SERIES_${s.series_id}`,
     onFocus: () => {
       lastFocusedSeriesKey = focusKey;
+      (window as any).__lastFocusedSeriesKey = focusKey;
       if (!(window as any).isMouseFocus) {
         ref.current?.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
       }

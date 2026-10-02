@@ -76,6 +76,7 @@ export default function FavoritesPage() {
           try {
             setFocus(keyToFocus);
             lastFocusedFavKey = keyToFocus;
+            (window as any).__lastFocusedFavKey = keyToFocus;
             return;
           } catch (e) {}
         }
@@ -83,6 +84,7 @@ export default function FavoritesPage() {
         // Si on arrive depuis une autre page (ex: Cinéma, Canaux, Séries, Index, etc.) :
         // Le focus doit toujours repartir du titre tout en haut, pas du dernier élément visité
         lastFocusedFavKey = null;
+        (window as any).__lastFocusedFavKey = null;
         (window as any).__lastFavClickedItem = null;
         try {
           sessionStorage.removeItem('fav_clicked_key');
@@ -583,6 +585,7 @@ function FocusableCategoryTitle({ cat, onRename, blockUp }: any) {
     },
     onFocus: () => {
       lastFocusedFavKey = focusKey;
+      (window as any).__lastFocusedFavKey = focusKey;
       if (blockUp) {
         setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50);
       }
@@ -794,6 +797,7 @@ const FocusableCardImage = React.memo(function FocusableCardImage({ id, item, is
     },
     onFocus: () => {
       lastFocusedFavKey = focusKey;
+      (window as any).__lastFocusedFavKey = focusKey;
       onFocus();
       if (!(window as any).isMouseFocus && ref.current) {
         ref.current.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });

@@ -99,6 +99,9 @@ export default function Movies() {
 
     if (!isFromDetail) {
       lastFocusedMovieKey = null;
+      (window as any).__lastFocusedMovieKey = null;
+    } else if (lastFocusedMovieKey) {
+      (window as any).__lastFocusedMovieKey = lastFocusedMovieKey;
     }
 
     const targetKey = (isFromDetail && lastFocusedMovieKey) ? lastFocusedMovieKey : 'MOVIE_SEARCH';
@@ -300,6 +303,7 @@ function FocusableInput({ value, onChange, placeholder, containerRef }: any) {
     },
     onFocus: () => {
       lastFocusedMovieKey = focusKey;
+      (window as any).__lastFocusedMovieKey = focusKey;
       if (!(window as any).isMouseFocus) {
         setTimeout(() => {
           // 1. Remonter le conteneur spécifique
@@ -400,6 +404,7 @@ function FocusableMovie({ vid, idx, fallbackCover, onClick, onLongPress }: any) 
     },
     onFocus: () => {
       lastFocusedMovieKey = focusKey;
+      (window as any).__lastFocusedMovieKey = focusKey;
       if (!(window as any).isMouseFocus) {
         ref.current?.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
       }

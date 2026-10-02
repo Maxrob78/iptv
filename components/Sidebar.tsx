@@ -41,7 +41,24 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 mt-12 3xl:mt-16 space-y-2 3xl:space-y-3 px-4 3xl:px-6">
-          <NavButton customFocusKey="NAV_INDEX" icon="🏠" label="Index" active={router.pathname === '/'} onClick={() => router.push('/')} isFirst={true} />
+          <NavButton
+            customFocusKey="NAV_INDEX"
+            icon="🏠"
+            label="Index"
+            active={router.pathname === '/'}
+            onClick={() => {
+              if (router.pathname === '/' || router.pathname === '') {
+                (window as any).__lastFocusedHomeKey = null;
+                try { setFocus('HERO_RESUME'); } catch (e) {}
+                const main = document.querySelector('main');
+                if (main) main.scrollTop = 0;
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              } else {
+                router.push('/');
+              }
+            }}
+            isFirst={true}
+          />
           <NavButton
             customFocusKey="NAV_MOVIES"
             icon="🎬"
@@ -49,6 +66,7 @@ export function Sidebar() {
             active={router.pathname.includes('/movies')}
             onClick={() => {
               if (router.pathname.includes('/movies')) {
+                (window as any).__lastFocusedMovieKey = null;
                 try {
                   setFocus('MOVIE_SEARCH');
                 } catch (e) {}
@@ -67,6 +85,7 @@ export function Sidebar() {
             active={router.pathname.includes('/channels')}
             onClick={() => {
               if (router.pathname.includes('/channels')) {
+                (window as any).__lastFocusedChannelKey = null;
                 try {
                   setFocus('CHANNEL_SEARCH');
                 } catch (e) {}
@@ -84,7 +103,8 @@ export function Sidebar() {
             label="Séries"
             active={router.pathname.includes('/series')}
             onClick={() => {
-              if (router.pathname === '/series' || (router.pathname.includes('/series') && !router.pathname.includes('/series/'))) {
+              if (router.pathname === '/series' || router.pathname === '/series/') {
+                (window as any).__lastFocusedSeriesKey = null;
                 try {
                   setFocus('SERIES_SEARCH');
                 } catch (e) {}
@@ -103,6 +123,7 @@ export function Sidebar() {
             active={router.pathname.includes('/favorites')}
             onClick={() => {
               if (router.pathname.includes('/favorites')) {
+                (window as any).__lastFocusedFavKey = null;
                 try {
                   setFocus('FIRST_FAV_TITLE');
                 } catch (e) {}
@@ -156,28 +177,81 @@ export function Sidebar() {
 }
 
 function NavButton({ icon, label, active = false, onClick, isFirst, isLast, customFocusKey, isProfile }: { icon: React.ReactNode, label: string, active?: boolean, onClick: () => void, isFirst?: boolean, isLast?: boolean, customFocusKey?: string, isProfile?: boolean }) {
+  const router = useRouter();
   const { ref, focused, focusKey } = useFocusable({
     focusKey: customFocusKey,
     onEnterPress: onClick,
     onArrowPress: (direction) => {
       if (direction === 'left') return false;
       if (direction === 'right') {
-        const path = window.location.pathname;
-        if (path.includes('/movie/')) {
+        const routePath = router?.pathname || '';
+        const windowPath = typeof window !== 'undefined' ? window.location.pathname : '';
+
+        const isMovieDetail = routePath === '/movie/[id]' || (routePath !== '/movies' && windowPath.includes('/movie/'));
+        const isMovieList = routePath === '/movies' || windowPath === '/movies' || windowPath.includes('/movies');
+
+        const isSeriesDetail = routePath === '/series/[id]' || (
+          routePath !== '/series' &&
+          windowPath.includes('/series/') &&
+          !windowPath.endsWith('/series/') &&
+          !windowPath.endsWith('/series/index.html') &&
+          !windowPath.endsWith('/series.html')
+        );
+        const isSeriesList = routePath === '/series' || (
+          !isSeriesDetail && (
+            windowPath === '/series' ||
+            windowPath.endsWith('/series/') ||
+            windowPath.endsWith('/series/index.html') ||
+            windowPath.endsWith('/series.html') ||
+            windowPath.includes('/series')
+          )
+        );
+
+        if (isMovieDetail) {
+          const lastKey = (window as any).__lastFocusedMovieDetailKey;
+          if (lastKey) {
+            try { setFocus(lastKey); return false; } catch (e) {}
+          }
           setFocus('MOVIE_MAIN_CONTENT');
-        } else if (path.includes('/series/')) {
+        } else if (isSeriesDetail) {
+          const lastKey = (window as any).__lastFocusedSeriesDetailKey;
+          if (lastKey) {
+            try { setFocus(lastKey); return false; } catch (e) {}
+          }
           setFocus('SERIES_MAIN_CONTENT');
-        } else if (path === '/movies' || path.includes('/movies')) {
-          setFocus('MOVIE_SEARCH');
-        } else if (path === '/series' || (path.includes('/series') && !path.includes('/series/'))) {
-          setFocus('SERIES_SEARCH');
-        } else if (path === '/channels' || path.includes('/channels')) {
-          setFocus('CHANNEL_SEARCH');
-        } else if (path === '/' || path === '') {
+        } else if (isMovieList) {
+          const lastKey = (window as any).__lastFocusedMovieKey;
+          if (lastKey) {
+            try { setFocus(lastKey); return false; } catch (e) {}
+          }
+          setFocus('MAIN_CONTENT');
+        } else if (isSeriesList) {
+          const lastKey = (window as any).__lastFocusedSeriesKey;
+          if (lastKey) {
+            try { setFocus(lastKey); return false; } catch (e) {}
+          }
+          setFocus('MAIN_CONTENT');
+        } else if (routePath === '/channels' || windowPath === '/channels' || windowPath.includes('/channels')) {
+          const lastKey = (window as any).__lastFocusedChannelKey;
+          if (lastKey) {
+            try { setFocus(lastKey); return false; } catch (e) {}
+          }
+          setFocus('MAIN_CONTENT');
+        } else if (routePath === '/favorites' || windowPath === '/favorites' || windowPath.includes('/favorites')) {
+          const lastKey = (window as any).__lastFocusedFavKey;
+          if (lastKey) {
+            try { setFocus(lastKey); return false; } catch (e) {}
+          }
+          setFocus('MAIN_CONTENT');
+        } else if (routePath === '/' || windowPath === '/' || windowPath === '') {
           if ((window as any).hasJustRefreshed) {
             setFocus('HERO_RESUME');
             (window as any).hasJustRefreshed = false;
           } else {
+            const lastKey = (window as any).__lastFocusedHomeKey;
+            if (lastKey) {
+              try { setFocus(lastKey); return false; } catch (e) {}
+            }
             setFocus('MAIN_CONTENT');
           }
         } else {
