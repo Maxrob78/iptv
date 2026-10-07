@@ -21,6 +21,8 @@ let currentMpvProcess = null;
 let isLaunchingMpv = false;
 let remotePort = 3008;
 let connectedClients = new Set();
+let lastKnownPaused = false;
+let lastKnownProgress = null;
 
 function broadcast(data) {
     const message = JSON.stringify(data);
@@ -95,8 +97,11 @@ function startRemoteServer(mainWindow) {
     ws.send(JSON.stringify({ 
         type: 'status', 
         playerActive: activeMpvClient !== null,
-        paused: false // Par défaut au début
+        paused: lastKnownPaused // Utiliser l'état réel connu
     }));
+    if (activeMpvClient !== null && lastKnownProgress) {
+        ws.send(JSON.stringify({ type: 'progress', ...lastKnownProgress }));
+    }
 
     ws.on('close', () => connectedClients.delete(ws));
 
@@ -468,7 +473,7 @@ function createWindow() {
                 client.write(JSON.stringify({ command: ["get_property", "time-pos"], request_id: 1 }) + "\n");
                 client.write(JSON.stringify({ command: ["get_property", "duration"], request_id: 2 }) + "\n");
                 client.write(JSON.stringify({ command: ["get_property", "track-list"], request_id: 3 }) + "\n");
-            }, 2000);
+            }, 1000);
       });
 
       let lastPos = 0;
@@ -482,7 +487,8 @@ function createWindow() {
                     
                     // Détection du changement de pause
                     if (json.event === "property-change" && json.name === "pause") {
-                        broadcast({ type: 'status', playerActive: true, paused: json.data });
+                        lastKnownPaused = !!json.data;
+                        broadcast({ type: 'status', playerActive: true, paused: lastKnownPaused });
                     }
 
                     // Gestion de la fin de fichier
@@ -518,13 +524,14 @@ function createWindow() {
                         broadcast({ type: 'tracks', audio: audioTracks, subs: subTracks });
                     }
 
-                    if (lastDuration > 0 && lastPos > 0) {
+                    if (lastDuration > 0 && lastPos >= 0) {
                         const progressData = {
                             streamId,
                             currentTime: lastPos,
                             duration: lastDuration,
                             progress: (lastPos / lastDuration) * 100
                         };
+                        lastKnownProgress = progressData;
                         mainWindow.webContents.send('mpv-progress', progressData);
                         broadcast({ type: 'progress', ...progressData });
                     }
@@ -543,6 +550,8 @@ function createWindow() {
       activeMpvClient = null; // Reset le client quand MPV ferme
       currentMpvProcess = null;
       isLaunchingMpv = false; // Sécurité supplémentaire
+      lastKnownPaused = false;
+      lastKnownProgress = null;
       broadcast({ type: 'status', playerActive: false, paused: false });
     });
   } // Fin de launchMpv

@@ -557,6 +557,15 @@ export default function SeriesDetail() {
   const displayCover = data?.info?.cover || data?.info?.movie_image || fallbackSeries?.cover || "";
   const episodes = selectedSeason && data?.episodes ? (data.episodes[selectedSeason] || []) : [];
 
+  const availableSeasons = (data?.seasons && data?.episodes)
+    ? data.seasons.filter((s: any) => {
+        const sNum = s.season_number?.toString();
+        return data.episodes[sNum] && data.episodes[sNum].length > 0;
+      })
+    : [];
+
+  const hasSeasons = availableSeasons.length > 0;
+
   const parseCast = (castStr?: string) => {
     if (!castStr || typeof castStr !== 'string') return [];
     return castStr.split(',').map(s => s.trim()).filter(Boolean);
@@ -747,23 +756,22 @@ export default function SeriesDetail() {
             </div>
         </div>
 
-        <div className="px-20 relative z-10 mt-40 mb-20 animate-in fade-in slide-in-from-bottom-10 duration-1000">
-            <div className="flex items-center space-x-10 mb-10 overflow-x-auto no-scrollbar pb-6 mask-fade-right">
-                {data.seasons && data.seasons.filter((s: any) => {
-                    const sNum = s.season_number?.toString();
-                    return data.episodes[sNum] && data.episodes[sNum].length > 0;
-                }).map((s: any) => (
-                    <FocusableSeasonButton 
-                        key={s.season_number}
-                        s={s}
-                        focusKey={`SEASON_${s.season_number}`}
-                        isActive={selectedSeason === s.season_number.toString()}
-                        onClick={() => setSelectedSeason(s.season_number.toString())}
-                    />
-                ))}
-            </div>
-            <div className="w-full h-[1px] bg-white/5" />
-        </div>
+        {hasSeasons && (
+          <div className="px-20 relative z-10 mt-40 mb-20 animate-in fade-in slide-in-from-bottom-10 duration-1000">
+              <div className="flex items-center space-x-10 mb-10 overflow-x-auto no-scrollbar pb-6 mask-fade-right">
+                  {availableSeasons.map((s: any) => (
+                      <FocusableSeasonButton 
+                          key={s.season_number}
+                          s={s}
+                          focusKey={`SEASON_${s.season_number}`}
+                          isActive={selectedSeason === s.season_number.toString()}
+                          onClick={() => setSelectedSeason(s.season_number.toString())}
+                      />
+                  ))}
+              </div>
+              <div className="w-full h-[1px] bg-white/5" />
+          </div>
+        )}
 
         <div className="px-20 relative z-10 pt-10">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-12">
@@ -775,6 +783,8 @@ export default function SeriesDetail() {
                         focusKey={`EPISODE_${ep.id}`}
                         history={playbackHistory[ep.id as string]}
                         onClick={handlePlayEpisode}
+                        selectedSeason={selectedSeason}
+                        hasSeasons={hasSeasons}
                     />
                 ))}
             </div>
@@ -933,6 +943,8 @@ function FocusableSeasonButton({ s, isActive, onClick, focusKey: customFocusKey 
   return (
     <button 
         ref={ref}
+        data-focus-key={focusKey}
+        data-season-btn="true"
         onClick={onClick}
         onMouseEnter={(e: any) => {
           if ((window as any).lastMouseX !== e.clientX || (window as any).lastMouseY !== e.clientY) {
@@ -969,7 +981,7 @@ function FocusableSeasonButton({ s, isActive, onClick, focusKey: customFocusKey 
   );
 }
 
-function FocusableEpisodeCard({ ep, history, onClick, focusKey: customFocusKey, index }: any) {
+function FocusableEpisodeCard({ ep, history, onClick, focusKey: customFocusKey, index, selectedSeason, hasSeasons }: any) {
   const { ref, focused, focusKey } = useFocusable({
     focusKey: customFocusKey,
     onEnterPress: () => onClick(ep),
@@ -991,20 +1003,32 @@ function FocusableEpisodeCard({ ep, history, onClick, focusKey: customFocusKey, 
       if (direction === 'up') {
         const columns = window.innerWidth >= 1280 ? 3 : window.innerWidth >= 768 ? 2 : 1;
         if (index < columns) {
-          // 1. Chercher si un bouton de saison existe dans le DOM
-          const targetKey = ep.season ? `SEASON_${ep.season}` : '';
-          const seasonBtn = (targetKey ? document.querySelector(`[data-focus-key="${targetKey}"]`) : null) ||
-                            document.querySelector(`[data-focus-key^="SEASON_"]`);
+          if (hasSeasons) {
+            const targetSeason = ep.season?.toString() || selectedSeason;
+            const targetKey = targetSeason ? `SEASON_${targetSeason}` : '';
 
-          if (seasonBtn) {
-            const fk = seasonBtn.getAttribute('data-focus-key');
-            if (fk) {
-              setFocus(fk);
-              return false;
+            // 1. Tenter la saison exacte sélectionnée ou de l'épisode
+            if (targetKey) {
+              try {
+                setFocus(targetKey);
+                return false;
+              } catch (e) {}
+            }
+
+            // 2. Repli sur le premier bouton de saison présent dans le DOM
+            const seasonBtn = document.querySelector('[data-season-btn="true"]');
+            if (seasonBtn) {
+              const fk = seasonBtn.getAttribute('data-focus-key');
+              if (fk) {
+                try {
+                  setFocus(fk);
+                  return false;
+                } catch (e) {}
+              }
             }
           }
 
-          // 2. Si aucune saison n'est affichée (ex: série sans saisons), remonter directement sur le coeur / favoris
+          // 3. Si aucune saison n'est affichée (série sans saison), remonter sur le coeur / favoris
           setFocus('RATE_SERIES_BTN');
           return false;
         }
