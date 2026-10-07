@@ -9,6 +9,81 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   title = "Platinum Studio", 
   subtitle = "Initialisation du système..." 
 }) => {
+  const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animId: number;
+    let width = (canvas.width = window.innerWidth);
+    let height = (canvas.height = window.innerHeight);
+
+    const onResize = () => {
+      if (!canvas) return;
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    };
+    window.addEventListener('resize', onResize);
+
+    // Particules réelles distribuées de manière 100% aléatoire et organique
+    const count = 55;
+    const particles = Array.from({ length: count }, () => ({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      size: Math.random() < 0.3 ? 1.5 : (Math.random() < 0.7 ? 1 : 0.8),
+      speedY: 0.15 + Math.random() * 0.35,
+      speedX: (Math.random() - 0.5) * 0.1,
+      color: Math.random() < 0.65 ? '#b5924d' : '#ffffff',
+      alpha: 0.2 + Math.random() * 0.6,
+      pulseSpeed: 0.01 + Math.random() * 0.02,
+      pulseOffset: Math.random() * Math.PI * 2
+    }));
+
+    let frame = 0;
+    const render = () => {
+      frame++;
+      ctx.clearRect(0, 0, width, height);
+
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        p.y -= p.speedY;
+        p.x += p.speedX;
+
+        // Réapparition aléatoire en bas
+        if (p.y < -10) {
+          p.y = height + 10;
+          p.x = Math.random() * width;
+        }
+        if (p.x < -10) p.x = width + 10;
+        if (p.x > width + 10) p.x = -10;
+
+        const currentAlpha = Math.max(0.05, p.alpha + Math.sin(frame * p.pulseSpeed + p.pulseOffset) * 0.2);
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = currentAlpha;
+        ctx.shadowColor = p.color === '#b5924d' ? '#b5924d' : 'transparent';
+        ctx.shadowBlur = p.size > 1 ? 6 : 0;
+        ctx.fill();
+      }
+
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+      animId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
+
   return (
     <div className="fixed inset-0 z-[9998] bg-[#030303] flex items-center justify-center overflow-hidden select-none animate-in fade-in duration-500 font-['Inter']">
       
@@ -19,14 +94,8 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
       <div className="absolute w-[800px] h-[800px] bg-[radial-gradient(circle,rgba(181,146,77,0.15)_0%,transparent_60%)] rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-[breathe_8s_ease-in-out_infinite] z-[1]" />
       <div className="absolute w-[1200px] h-[1200px] bg-[radial-gradient(circle,rgba(255,255,255,0.02)_0%,transparent_60%)] rounded-full top-[30%] left-[30%] -translate-x-1/2 -translate-y-1/2 animate-[drift_15s_linear_infinite_alternate] z-[1]" />
 
-      {/* Particles Container (Simulated with background pattern) */}
-      <div className="absolute inset-0 z-[2] opacity-50 animate-[floatUp_60s_linear_infinite]" 
-           style={{
-             backgroundImage: 'radial-gradient(1px 1px at 20px 30px, #b5924d, rgba(0,0,0,0)), radial-gradient(1px 1px at 40px 70px, #fff, rgba(0,0,0,0)), radial-gradient(1.5px 1.5px at 90px 40px, #b5924d, rgba(0,0,0,0))',
-             backgroundRepeat: 'repeat',
-             backgroundSize: '200px 200px'
-           }} 
-      />
+      {/* Particules fluides & aléatoires sur Canvas (sans aucun motif répétitif) */}
+      <canvas ref={canvasRef} className="absolute inset-0 z-[2] pointer-events-none" />
       
       <div className="relative z-10 flex flex-col items-center gap-12">
         
