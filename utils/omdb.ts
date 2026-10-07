@@ -1,10 +1,10 @@
-const OMDB_API_KEY: string = '57d5d43c';
+import { OMDB_API_KEY } from './config';
 const OMDB_API_URL = 'http://www.omdbapi.com/';
 
 export async function fetchOmdbRating(title: string, year?: string, type?: 'movie' | 'series', imdbId?: string): Promise<string | null> {
   if (!title && !imdbId) return null;
-  if (OMDB_API_KEY === 'YOUR_API_KEY') {
-    console.warn("Clé API OMDb manquante. Veuillez l'ajouter dans utils/omdb.ts");
+  if (!OMDB_API_KEY || OMDB_API_KEY === 'YOUR_API_KEY') {
+    console.warn("Clé API OMDb manquante.");
     return null;
   }
 

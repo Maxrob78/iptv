@@ -1,6 +1,4 @@
-import config from '../config.json';
-
-const TMDB_API_KEY = (config as any).TMDB_API_KEY;
+import { TMDB_API_KEY } from './config';
 const BASE_URL = 'https://api.themoviedb.org/3';
 
 export interface TMDBMovie {

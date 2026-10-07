@@ -15,9 +15,7 @@
  * Cache : localStorage avec TTL de 7 jours.
  */
 
-import config from '../config.json';
-
-const TMDB_API_KEY = (config as any).TMDB_API_KEY;
+import { TMDB_API_KEY } from './config';
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface CacheEntry {

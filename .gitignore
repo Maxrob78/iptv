@@ -4,3 +4,5 @@ out/
 bin/
 dist/
 Sauvegarde_Donnees/
+config.local.json
+git-portable/

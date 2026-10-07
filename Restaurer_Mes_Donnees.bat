@@ -19,6 +19,9 @@ echo Restauration de vos identifiants, favoris et historique en cours...
 echo.
 
 robocopy "Sauvegarde_Donnees\iptv-netflix" "%APPDATA%\iptv-netflix" /E /R:1 /W:1 >nul 2>&1
+if exist "Sauvegarde_Donnees\config.local.json" (
+    copy /Y "Sauvegarde_Donnees\config.local.json" "config.local.json" >nul 2>&1
+)
 
 if %ERRORLEVEL% LEQ 7 (
     echo ----------------------------------------------------------------------

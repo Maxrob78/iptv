@@ -18,6 +18,9 @@ echo Copie de vos identifiants, profils, favoris et historique en cours...
 echo.
 
 robocopy "%APPDATA%\iptv-netflix" "Sauvegarde_Donnees\iptv-netflix" /E /XD Cache "Code Cache" "DawnCache" "GPUCache" /R:1 /W:1 >nul 2>&1
+if exist "config.local.json" (
+    copy /Y "config.local.json" "Sauvegarde_Donnees\config.local.json" >nul 2>&1
+)
 
 :: Codes d'erreur robocopy de 0 a 7 indiquent un succes
 if %ERRORLEVEL% LEQ 7 (

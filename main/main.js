@@ -321,20 +321,22 @@ function createWindow() {
       const cacheDir = path.join(app.getPath('userData'), 'subtitles_cache');
       cleanupCache(cacheDir);
 
-      // Recharger config.json pour prendre en compte les modifs en temps réel
+      // Recharger config.local.json ou config.json pour prendre en compte les modifs en temps réel
       try {
+        const localConfigPath = path.join(app.getAppPath(), 'config.local.json');
         const configPath = path.join(app.getAppPath(), 'config.json');
-        console.log("[SUBTITLE] Lecture config depuis:", configPath);
+        let config = {};
         if (fs.existsSync(configPath)) {
-          const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-          console.log("[SUBTITLE] Contenu config.json lu:", config);
-          currentOsSettings.enabled = config.ENABLE_SUBTITLES || false;
-          currentOsSettings.apiKey = config.OPEN_SUBTITLES_API_KEY || '';
-        } else {
-          console.log("[SUBTITLE] Le fichier config.json n'existe pas !");
+          config = { ...config, ...JSON.parse(fs.readFileSync(configPath, 'utf8')) };
         }
+        if (fs.existsSync(localConfigPath)) {
+          config = { ...config, ...JSON.parse(fs.readFileSync(localConfigPath, 'utf8')) };
+        }
+        console.log("[SUBTITLE] Contenu config lu:", config);
+        currentOsSettings.enabled = config.ENABLE_SUBTITLES !== false;
+        currentOsSettings.apiKey = config.OPEN_SUBTITLES_API_KEY || '';
       } catch (e) {
-        console.error("[SUBTITLE] Impossible de lire config.json", e.message);
+        console.error("[SUBTITLE] Impossible de lire config", e.message);
       }
       
       let subPath = null;
