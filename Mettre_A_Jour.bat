@@ -58,6 +58,11 @@ echo [OK] Git Portable installe avec succes !
 
 :git_ready
 
+:: Autoriser ce dossier dans Git (evite le blocage "dubious ownership" sur cle USB / FAT32 / autre utilisateur)
+"%GIT_CMD%" config --global --add safe.directory "%CD:\=/%" >nul 2>&1
+"%GIT_CMD%" config --global --add safe.directory "*" >nul 2>&1
+
+
 :: 2. Verifier Node.js
 where node >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
