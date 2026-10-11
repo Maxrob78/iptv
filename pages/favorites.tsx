@@ -173,14 +173,19 @@ export default function FavoritesPage() {
             <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-white/[0.02] blur-[150px] rounded-full" />
           </div>
 
-          <header className="relative z-10 pt-32 pb-24 px-20">
-            <div className="flex items-center space-x-6 mb-12">
+          <header className="relative z-10 pt-28 pb-16 px-20">
+            <div className="flex items-center space-x-6 mb-8">
               <div className="w-16 h-[1px] bg-[#b5924d]/40" />
               <span className="text-[10px] font-medium uppercase tracking-[0.8em] text-[#b5924d]">Archives Personnelles</span>
             </div>
-            <h1 className="text-8xl font-extralight tracking-[-0.04em] leading-tight text-white">
+            <h1 className="text-8xl font-extralight tracking-[-0.04em] leading-tight text-white mb-10">
               MES <span className="opacity-30 italic font-serif text-white/50">COLLECTIONS.</span>
             </h1>
+            {favoriteCategories.length > 0 && (
+              <div className="flex items-center space-x-4 pt-2">
+                <FocusableHeaderAddButton onAdd={(name: string) => addCategory(name)} />
+              </div>
+            )}
           </header>
 
           <div className="px-20 relative z-10 space-y-40 pb-40">
@@ -215,6 +220,106 @@ export default function FavoritesPage() {
   );
 }
 
+// ─── Header New Collection button ───────────────────────────────────────────
+
+function FocusableHeaderAddButton({ onAdd }: { onAdd: (name: string) => void }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState('');
+
+  const { ref, focused, focusKey } = useFocusable({
+    focusKey: 'HEADER_ADD_CAT_BTN',
+    onEnterPress: () => {
+      if (!isEditing) setIsEditing(true);
+    },
+    onArrowPress: (direction) => {
+      if (direction === 'left') {
+        setFocus('NAV_FAVORITES');
+        return false;
+      }
+      if (direction === 'down') {
+        setFocus('FIRST_FAV_TITLE');
+        return false;
+      }
+      if (direction === 'up' || direction === 'right') {
+        // Stop bubbling so Norigin never loses focus into undefined space
+        return false;
+      }
+      return true;
+    },
+    onFocus: () => {
+      lastFocusedFavKey = 'HEADER_ADD_CAT_BTN';
+      (window as any).__lastFocusedFavKey = 'HEADER_ADD_CAT_BTN';
+      if (ref.current) {
+        ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  });
+
+  const submit = () => {
+    const finalName = name.trim();
+    setIsEditing(false);
+    setName('');
+    if (finalName) {
+      onAdd(finalName);
+      setTimeout(() => {
+        try {
+          setFocus('FIRST_FAV_TITLE');
+          lastFocusedFavKey = 'FIRST_FAV_TITLE';
+        } catch {
+          setFocus('NAV_FAVORITES');
+        }
+      }, 150);
+    } else {
+      setTimeout(() => setFocus('HEADER_ADD_CAT_BTN'), 50);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center space-x-3 animate-in fade-in duration-200">
+        <input
+          type="text"
+          autoFocus
+          value={name}
+          placeholder="Nom de la collection..."
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === 'Enter') submit();
+            if (e.key === 'Escape') {
+              setIsEditing(false);
+              setTimeout(() => setFocus('HEADER_ADD_CAT_BTN'), 50);
+            }
+          }}
+          onBlur={submit}
+          className="bg-black/95 border-2 border-[#b5924d] text-white px-5 py-3 rounded-sm text-xs uppercase tracking-widest outline-none shadow-2xl min-w-[260px]"
+        />
+        <button
+          onClick={submit}
+          className="bg-[#b5924d] text-black font-black px-5 py-3 rounded-sm text-[10px] uppercase tracking-widest hover:bg-white transition-colors"
+        >
+          Créer
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      ref={ref}
+      onClick={() => setIsEditing(true)}
+      onMouseEnter={() => { if (isMouseMode) setFocus(focusKey); }}
+      className={`px-6 py-3.5 border text-[10px] font-bold uppercase tracking-[0.3em] rounded-sm transition-all outline-none flex items-center space-x-3 shadow-lg
+        ${focused
+          ? 'bg-white text-black scale-105 shadow-[0_0_30px_rgba(255,255,255,0.6)] border-white ring-2 ring-[#b5924d]'
+          : 'text-[#b5924d] border-[#b5924d]/40 hover:border-[#b5924d] bg-white/[0.02] hover:bg-white/[0.05]'}`}
+    >
+      <span className={`text-lg font-light leading-none ${focused ? 'text-black font-black' : 'text-[#b5924d]'}`}>+</span>
+      <span className={focused ? 'text-black font-black' : ''}>Nouvelle Collection</span>
+    </button>
+  );
+}
+
 // ─── Empty state add button ──────────────────────────────────────────────────
 
 function FocusableEmptyAddButton({ onAdd }: { onAdd: (name: string) => void }) {
@@ -229,6 +334,9 @@ function FocusableEmptyAddButton({ onAdd }: { onAdd: (name: string) => void }) {
     onArrowPress: (direction) => {
       if (direction === 'left') {
         setFocus('NAV_FAVORITES');
+        return false;
+      }
+      if (direction === 'up') {
         return false;
       }
       return true;
@@ -576,7 +684,12 @@ function FocusableCategoryTitle({ cat, onRename, blockUp }: any) {
     focusKey: blockUp ? 'FIRST_FAV_TITLE' : `CAT_TITLE_${cat.id}`,
     onEnterPress: handleRenameClick,
     onArrowPress: (direction) => {
-      if (blockUp && direction === 'up') return false;
+      if (blockUp && direction === 'up') {
+        const main = document.querySelector('main');
+        if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
+        setFocus('HEADER_ADD_CAT_BTN');
+        return false;
+      }
       if (direction === 'left') {
         setFocus('NAV_FAVORITES');
         return false;
@@ -586,8 +699,8 @@ function FocusableCategoryTitle({ cat, onRename, blockUp }: any) {
     onFocus: () => {
       lastFocusedFavKey = focusKey;
       (window as any).__lastFocusedFavKey = focusKey;
-      if (blockUp) {
-        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50);
+      if (ref.current) {
+        ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
   });
@@ -633,7 +746,12 @@ function FocusableButton({ onClick, icon, label, variant, focusKey: customFocusK
     focusKey: customFocusKey,
     onEnterPress: disabled ? undefined : onClick,
     onArrowPress: (direction) => {
-      if (blockUp && direction === 'up') return false;
+      if (blockUp && direction === 'up') {
+        const main = document.querySelector('main');
+        if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
+        setFocus('HEADER_ADD_CAT_BTN');
+        return false;
+      }
       return true;
     },
   });
@@ -914,7 +1032,12 @@ function SortDropdown({ catId, currentSort, setSortOrder, blockUp }: any) {
       }
     },
     onArrowPress: (direction) => {
-      if (blockUp && direction === 'up') return false;
+      if (blockUp && direction === 'up') {
+        const main = document.querySelector('main');
+        if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
+        setFocus('HEADER_ADD_CAT_BTN');
+        return false;
+      }
       return true;
     }
   });
