@@ -692,7 +692,7 @@ export default function SeriesDetail() {
                         />
                     </div>
                     <div className="flex justify-center w-full animate-in zoom-in-95 duration-1000">
-                        <FavoriteDetailsButton item={{ ...(data?.info || {}), stream_id: cleanId, name: displayTitle, cover: displayCover, type: 'series' }} />
+                        <FavoriteDetailsButton item={{ ...(data?.info || {}), stream_id: cleanId, series_id: cleanId, name: displayTitle, cover: displayCover, type: 'series', stream_type: 'series' }} />
                     </div>
                 </div>
                 

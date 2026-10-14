@@ -798,7 +798,9 @@ export default function MovieDetail() {
                     stream_id: cleanId, 
                     name: displayTitle,
                     cover: displayCover,
-                    stream_icon: displayCover
+                    stream_icon: displayCover,
+                    type: 'movie',
+                    stream_type: 'movie'
                   }} />
                 </div>
 
