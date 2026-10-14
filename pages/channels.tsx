@@ -17,7 +17,14 @@ export default function Channels() {
   const [launchingVideo, setLaunchingVideo] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [renderLimit, setRenderLimit] = useState(20);
+  const [renderLimit, setRenderLimit] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const prev = (window as any).__previousRoute || sessionStorage.getItem('__previousRoute');
+      const isFromPlayer = prev === '/player/[id]' || (typeof prev === 'string' && prev.startsWith('/player/'));
+      if (isFromPlayer) return 100;
+    }
+    return 20;
+  });
   const [debugInfo, setDebugInfo] = useState<string>('');
   const [favModalItem, setFavModalItem] = useState<any>(null);
 

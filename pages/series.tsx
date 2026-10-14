@@ -17,7 +17,15 @@ export default function Series() {
   const [loading, setLoading] = useState(series.length === 0);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [renderLimit, setRenderLimit] = useState(20);
+  const [renderLimit, setRenderLimit] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const prev = (window as any).__previousRoute || sessionStorage.getItem('__previousRoute');
+      const isFromDetail = prev === '/series/[id]' || prev === '/player/[id]' ||
+        (typeof prev === 'string' && (prev.startsWith('/series/') || prev.startsWith('/player/')));
+      if (isFromDetail) return 100;
+    }
+    return 20;
+  });
   const [debugInfo, setDebugInfo] = useState<string>('');
   const [favModalItem, setFavModalItem] = useState<any>(null);
 

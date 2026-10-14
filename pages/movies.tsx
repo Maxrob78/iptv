@@ -20,7 +20,15 @@ export default function Movies() {
   const [launchingVideo, setLaunchingVideo] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [renderLimit, setRenderLimit] = useState(20);
+  const [renderLimit, setRenderLimit] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const prev = (window as any).__previousRoute || sessionStorage.getItem('__previousRoute');
+      const isFromDetail = prev === '/movie/[id]' || prev === '/player/[id]' ||
+        (typeof prev === 'string' && (prev.startsWith('/movie/') || prev.startsWith('/player/')));
+      if (isFromDetail) return 100;
+    }
+    return 20;
+  });
   const [errorInfo, setErrorInfo] = useState<string>('');
 
   const { ref, focusKey } = useFocusable({
