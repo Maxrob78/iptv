@@ -7,6 +7,7 @@ import { Sidebar } from '../components/Sidebar';
 import { FavoriteButton } from '../components/FavoriteButton';
 import FavoriteModal from '../components/FavoriteModal';
 import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spatial-navigation';
+import { restoreFocusSafely } from '../utils/focusRestoration';
 
 let lastFocusedSeriesKey: string | null = null;
 
@@ -73,15 +74,11 @@ export default function Series() {
 
     const targetKey = (isFromDetail && lastFocusedSeriesKey) ? lastFocusedSeriesKey : 'SERIES_SEARCH';
 
-    const tryFocus = () => {
-      try {
-        setFocus(targetKey);
-      } catch (e) {
-        try { setFocus('SERIES_SEARCH'); } catch (err) {}
-      }
-    };
-
-    const timers = [50, 150, 300, 500].map(d => setTimeout(tryFocus, d));
+    const cleanupFocus = restoreFocusSafely({
+      targetKey,
+      fallbackKey: 'SERIES_SEARCH',
+      delays: [50, 150, 300, 500],
+    });
 
     const fetchData = async () => {
       await hydrateHeavyData();
@@ -125,7 +122,7 @@ export default function Series() {
     fetchData();
 
     return () => {
-      timers.forEach(t => clearTimeout(t));
+      cleanupFocus();
     };
   }, [series.length, setSeries, checkAndClearCache, hydrateHeavyData]);
 

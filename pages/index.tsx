@@ -9,6 +9,7 @@ import { Sidebar } from '../components/Sidebar';
 import { ResumeModal } from '../components/ResumeModal';
 import { LoadingScreen } from '../components/LoadingScreen';
 import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spatial-navigation';
+import { restoreFocusSafely } from '../utils/focusRestoration';
 
 export default function Home() {
   const router = useRouter();
@@ -52,13 +53,11 @@ export default function Home() {
 
     const targetKey = (isFromDetail && (window as any).__lastFocusedHomeKey) ? (window as any).__lastFocusedHomeKey : 'HERO_RESUME';
 
-    setTimeout(() => {
-      try {
-        setFocus(targetKey);
-      } catch (e) {
-        try { setFocus('HERO_RESUME'); } catch (err) {}
-      }
-    }, 200);
+    const cleanupFocus = restoreFocusSafely({
+      targetKey,
+      fallbackKey: 'HERO_RESUME',
+      delays: [50, 150, 300],
+    });
     const getGroupedHistory = (historyObj: any) => {
       const grouped = new Map();
 
@@ -116,9 +115,12 @@ export default function Home() {
 
     setPlaybackHistory(getGroupedHistory(history));
 
+    let removeProgress: (() => void) | undefined;
+    let removeStatus: (() => void) | undefined;
+
     // Écouteur global pour la progression MPV (Dashboard)
     if ((window as any).electronAPI && (window as any).electronAPI.on) {
-      const removeProgress = (window as any).electronAPI.on('mpv-progress', (data: any) => {
+      removeProgress = (window as any).electronAPI.on('mpv-progress', (data: any) => {
         const activeId = useProfileStore.getState().activeProfile?.id;
         const key = activeId ? `iptv_playback_history_${activeId}` : 'iptv_playback_history';
         const currentHistory = JSON.parse(localStorage.getItem(key) || '{}');
@@ -136,17 +138,18 @@ export default function Home() {
         }
       });
 
-      const removeStatus = (window as any).electronAPI.on('mpv-status', (data: any) => {
+      removeStatus = (window as any).electronAPI.on('mpv-status', (data: any) => {
         if (data && (data.status === 'error' || data.status === 'closed')) {
           setLaunchingVideo(null);
         }
       });
-
-      return () => {
-        removeProgress();
-        removeStatus();
-      };
     }
+
+    return () => {
+      cleanupFocus();
+      if (removeProgress) removeProgress();
+      if (removeStatus) removeStatus();
+    };
   }, []);
 
   useEffect(() => {

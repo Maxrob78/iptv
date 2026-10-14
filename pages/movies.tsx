@@ -9,6 +9,7 @@ import { FavoriteButton } from '../components/FavoriteButton';
 import FavoriteModal from '../components/FavoriteModal';
 import { ResumeModal } from '../components/ResumeModal';
 import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spatial-navigation';
+import { restoreFocusSafely } from '../utils/focusRestoration';
 
 let lastFocusedMovieKey: string | null = null;
 
@@ -106,15 +107,11 @@ export default function Movies() {
 
     const targetKey = (isFromDetail && lastFocusedMovieKey) ? lastFocusedMovieKey : 'MOVIE_SEARCH';
 
-    const tryFocus = () => {
-      try {
-        setFocus(targetKey);
-      } catch (e) {
-        try { setFocus('MOVIE_SEARCH'); } catch (err) {}
-      }
-    };
-
-    const timers = [50, 150, 300, 500].map(d => setTimeout(tryFocus, d));
+    const cleanupFocus = restoreFocusSafely({
+      targetKey,
+      fallbackKey: 'MOVIE_SEARCH',
+      delays: [50, 150, 300, 500],
+    });
 
     const fetchData = async () => {
       // 1. On tente d'abord de recharger depuis le cache disque (IndexedDB),
@@ -145,7 +142,7 @@ export default function Movies() {
     };
     fetchData();
 
-    return () => timers.forEach(t => clearTimeout(t));
+    return () => cleanupFocus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

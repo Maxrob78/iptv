@@ -7,6 +7,7 @@ import { Sidebar } from '../components/Sidebar';
 import { xtreamApi } from '../utils/xtream';
 import { ResumeModal } from '../components/ResumeModal';
 import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spatial-navigation';
+import { restoreFocusSafely } from '../utils/focusRestoration';
 
 // ─── Global mouse / key mode tracker ─────────────────────────────────────────
 let lastMouseX = -1;
@@ -71,48 +72,42 @@ export default function FavoritesPage() {
 
       const savedKey = (window as any).__lastFavClickedItem || (typeof window !== 'undefined' ? sessionStorage.getItem('fav_clicked_key') : null);
 
-      const attemptFocus = () => {
-        if (isFromDetail && (savedKey || lastFocusedFavKey)) {
-          const keyToFocus = savedKey || lastFocusedFavKey;
-          try {
-            setFocus(keyToFocus);
-            lastFocusedFavKey = keyToFocus;
-            (window as any).__lastFocusedFavKey = keyToFocus;
-            return;
-          } catch (e) {}
-        }
-
-        // Si on arrive depuis une autre page (ex: Cinéma, Canaux, Séries, Index, etc.) :
-        // Le focus doit toujours repartir du titre tout en haut, pas du dernier élément visité
+      if (!isFromDetail) {
         lastFocusedFavKey = null;
         (window as any).__lastFocusedFavKey = null;
         (window as any).__lastFavClickedItem = null;
         try {
           sessionStorage.removeItem('fav_clicked_key');
         } catch (e) {}
+      }
 
-        const targetKey = favoriteCategories.length > 0 ? 'FIRST_FAV_TITLE' : 'CREATE_FIRST_CAT_BTN';
-        try {
-          setFocus(targetKey);
-        } catch (e) {}
-        if (ref.current) {
-          ref.current.scrollTop = 0;
-        }
-        window.scrollTo({ top: 0, behavior: 'auto' });
-      };
+      const defaultKey = favoriteCategories.length > 0 ? 'FIRST_FAV_TITLE' : 'CREATE_FIRST_CAT_BTN';
+      const targetKey = (isFromDetail && (savedKey || lastFocusedFavKey))
+        ? (savedKey || lastFocusedFavKey)
+        : defaultKey;
 
-      const timer1 = setTimeout(attemptFocus, 150);
-      const timer2 = setTimeout(() => {
-        if (isFromDetail && (savedKey || lastFocusedFavKey)) {
-          try {
-            setFocus(savedKey || lastFocusedFavKey);
-          } catch (e) {}
+      const cleanupFocus = restoreFocusSafely({
+        targetKey,
+        fallbackKey: defaultKey,
+        delays: [50, 150, 350],
+        onSuccess: (key) => {
+          if (isFromDetail) {
+            lastFocusedFavKey = key;
+            (window as any).__lastFocusedFavKey = key;
+          }
+        },
+        onInitialSetup: () => {
+          if (!isFromDetail) {
+            if (ref.current) {
+              ref.current.scrollTop = 0;
+            }
+            window.scrollTo({ top: 0, behavior: 'auto' });
+          }
         }
-      }, 350);
+      });
 
       return () => {
-        clearTimeout(timer1);
-        clearTimeout(timer2);
+        cleanupFocus();
       };
     }
   }, [mounted, favoriteCategories.length]);

@@ -6,6 +6,7 @@ import { Sidebar } from '../components/Sidebar';
 import { FavoriteButton } from '../components/FavoriteButton';
 import FavoriteModal from '../components/FavoriteModal';
 import { useFocusable, FocusContext, setFocus } from '@noriginmedia/norigin-spatial-navigation';
+import { restoreFocusSafely } from '../utils/focusRestoration';
 
 let lastFocusedChannelKey: string | null = null;
 
@@ -82,15 +83,12 @@ export default function Channels() {
 
     const targetKey = (isFromPlayer && lastFocusedChannelKey) ? lastFocusedChannelKey : 'CHANNEL_SEARCH';
 
-    const tryFocus = () => {
-      try {
-        setFocus(targetKey);
-      } catch (e) {
-        try { setFocus('CHANNEL_SEARCH'); } catch (err) {}
-      }
-    };
+    const cleanupFocus = restoreFocusSafely({
+      targetKey,
+      fallbackKey: 'CHANNEL_SEARCH',
+      delays: [50, 150, 300, 500],
+    });
 
-    const timers = [50, 150, 300, 500].map(d => setTimeout(tryFocus, d));
     const fetchData = async () => {
       if (channels.length > 0) return;
 
@@ -108,7 +106,7 @@ export default function Channels() {
     fetchData();
 
     return () => {
-      timers.forEach(t => clearTimeout(t));
+      cleanupFocus();
     };
   }, [channels.length, setChannels, checkAndClearCache]);
 
