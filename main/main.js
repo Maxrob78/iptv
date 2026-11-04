@@ -4,6 +4,7 @@ const os = require('os');
 const http = require('http');
 const WebSocket = require('ws');
 const fs = require('fs');
+const dgram = require('dgram');
 const { fetchSubtitle, cleanupCache } = require('./subtitleFetcher');
 
 // OPTIMISATIONS LECTEUR IPTV - DÉCODAGE MATÉRIEL & CODECS
@@ -33,24 +34,106 @@ function broadcast(data) {
     });
 }
 
-function getLocalIp() {
+function getOutboundIp() {
+  return new Promise((resolve) => {
+    try {
+      const socket = dgram.createSocket('udp4');
+      socket.connect(53, '8.8.8.8', () => {
+        try {
+          const addr = socket.address().address;
+          socket.close();
+          resolve(addr);
+        } catch {
+          resolve(null);
+        }
+      });
+      socket.on('error', () => {
+        try { socket.close(); } catch {}
+        resolve(null);
+      });
+      setTimeout(() => {
+        try { socket.close(); } catch {}
+        resolve(null);
+      }, 400);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+function getAllNetworkInterfaces(outboundIp = null) {
   const interfaces = os.networkInterfaces();
-  console.log('[DEBUG] Interfaces réseau détectées :');
-  let bestIp = 'localhost';
+  const results = [];
+
   for (const name of Object.keys(interfaces)) {
+    const lowerName = name.toLowerCase();
+    const isVirtual = lowerName.includes('virtual') || 
+                      lowerName.includes('vbox') || 
+                      lowerName.includes('vmware') || 
+                      lowerName.includes('vethernet') || 
+                      lowerName.includes('wsl') || 
+                      lowerName.includes('docker') || 
+                      lowerName.includes('loopback') || 
+                      lowerName.includes('pseudo') || 
+                      lowerName.includes('bluetooth') || 
+                      lowerName.includes('tap') || 
+                      lowerName.includes('tun') || 
+                      lowerName.includes('tailscale') || 
+                      lowerName.includes('zerotier') || 
+                      lowerName.includes('hamachi') || 
+                      name.includes('*');
+
     for (const iface of interfaces[name]) {
       if (iface.family === 'IPv4' && !iface.internal) {
-        console.log(` - ${name}: ${iface.address}`);
-        // On privilégie les adresses qui commencent par 192 ou 172 (classique Wi-Fi/Hotspot)
-        if (iface.address.startsWith('192.') || iface.address.startsWith('172.')) {
-          bestIp = iface.address;
-        } else if (bestIp === 'localhost') {
-          bestIp = iface.address;
+        if (iface.address.startsWith('169.254.') || iface.address === '0.0.0.0') continue;
+
+        let score = 0;
+        if (outboundIp && iface.address === outboundIp) score += 100;
+        if (!isVirtual) {
+          if (!iface.address.startsWith('192.168.56.') && !iface.address.startsWith('192.168.137.')) {
+            score += 30;
+          }
         }
+        if (lowerName.includes('wi-fi') || lowerName.includes('wifi') || lowerName.includes('wlan')) score += 40;
+        else if (lowerName.includes('ethernet') || lowerName.includes('eth')) score += 20;
+
+        if (iface.address.startsWith('192.168.')) score += 10;
+        else if (iface.address.startsWith('10.') || iface.address.startsWith('172.')) score += 5;
+
+        results.push({
+          name,
+          address: iface.address,
+          isVirtual,
+          isOutbound: outboundIp ? iface.address === outboundIp : false,
+          score
+        });
       }
     }
   }
-  return bestIp;
+
+  results.sort((a, b) => b.score - a.score);
+  return results;
+}
+
+function getLocalIp() {
+  const list = getAllNetworkInterfaces();
+  return list.length > 0 ? list[0].address : '127.0.0.1';
+}
+
+async function getRemoteInfoData() {
+  const outboundIp = await getOutboundIp();
+  const list = getAllNetworkInterfaces(outboundIp);
+  const bestIp = list.length > 0 ? list[0].address : '127.0.0.1';
+  return {
+    ip: bestIp,
+    port: remotePort,
+    url: `http://${bestIp}:${remotePort}`,
+    availableIps: list.map(item => ({
+      name: item.name,
+      ip: item.address,
+      isDefault: item.address === bestIp
+    }))
+  };
 }
 
 function startRemoteServer(mainWindow) {
@@ -634,13 +717,8 @@ app.whenReady().then(() => {
   const mainWindow = BrowserWindow.getAllWindows()[0];
   startRemoteServer(mainWindow);
 
-  ipcMain.handle('get-remote-info', () => {
-    const ip = getLocalIp();
-    return {
-      ip,
-      port: remotePort,
-      url: `http://${ip}:${remotePort}`
-    };
+  ipcMain.handle('get-remote-info', async () => {
+    return await getRemoteInfoData();
   });
 
   ipcMain.on('remote-visibility', (event, data) => {

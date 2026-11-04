@@ -8,6 +8,7 @@ export default function RemotePage() {
   const [localIp, setLocalIp] = useState<string>('');
   const [port, setPort] = useState<number>(3008);
   const [qrSize, setQrSize] = useState<number>(200);
+  const [copied, setCopied] = useState<boolean>(false);
   const { remoteHubIp } = useDataStore();
 
   useEffect(() => {
@@ -47,13 +48,20 @@ export default function RemotePage() {
   });
 
   useEffect(() => {
-    // Il n'y a pas de boutons sur cette page, donc on remet le focus sur la barre latérale 
-    // pour ne pas bloquer l'utilisateur à la télécommande.
+    // On remet le focus sur la barre latérale pour la navigation à la télécommande
     setFocus('SIDEBAR');
   }, []);
 
   // L'URL de l'application télécommande (port 3008 configuré dans main.js)
   const remoteUrl = `http://${localIp}:${port}/`;
+
+  const handleCopy = () => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(remoteUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   return (
     <div className="flex-1 flex bg-[#141414] min-h-screen">
@@ -88,9 +96,19 @@ export default function RemotePage() {
                 />
               </div>
               
-              <p className="mt-8 3xl:mt-10 text-sm 3xl:text-base font-bold text-gray-400 tracking-[0.2em] uppercase">
-                IP: <span className="text-white">{localIp}</span>
-              </p>
+              <div className="mt-8 3xl:mt-10 flex flex-col items-center text-center space-y-2 z-10">
+                <p className="text-sm 3xl:text-base font-bold text-gray-400 tracking-[0.2em] uppercase">
+                  IP : <span className="text-white font-mono">{localIp}</span>
+                </p>
+
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="mt-1 text-xs text-[#b5924d] hover:text-[#d4af37] underline tracking-wider font-semibold transition-colors"
+                >
+                  {copied ? '✓ Lien copié !' : 'Copier l\'adresse URL'}
+                </button>
+              </div>
             </div>
 
             {/* Instructions */}
@@ -114,7 +132,7 @@ export default function RemotePage() {
                 <div>
                   <h3 className="text-xl 3xl:text-3xl font-bold text-white mb-2">Scannez le QR Code</h3>
                   <p className="text-gray-400 3xl:text-xl leading-relaxed">
-                    Ouvrez l'appareil photo de votre téléphone et pointez-le vers le QR Code à l'écran.
+                    Ouvrez l'appareil photo de votre téléphone ou entrez directement l'adresse <span className="text-[#b5924d] font-mono font-bold">{remoteUrl}</span> dans votre navigateur mobile.
                   </p>
                 </div>
               </div>
@@ -130,7 +148,6 @@ export default function RemotePage() {
                   </p>
                 </div>
               </div>
-              
             </div>
           </div>
         </main>
