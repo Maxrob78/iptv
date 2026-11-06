@@ -45,11 +45,16 @@ export default function RemotePage() {
 
   const { ref, focusKey } = useFocusable({
     focusKey: 'REMOTE_PAGE',
+    focusable: false,
   });
 
   useEffect(() => {
     // On remet le focus sur la barre latérale pour la navigation à la télécommande
-    setFocus('SIDEBAR');
+    try {
+      setFocus('NAV_REMOTE');
+    } catch (e) {
+      setFocus('SIDEBAR');
+    }
   }, []);
 
   // L'URL de l'application télécommande (port 3008 configuré dans main.js)

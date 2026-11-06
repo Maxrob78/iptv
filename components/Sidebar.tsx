@@ -24,6 +24,27 @@ export function Sidebar() {
     focusKey: 'SIDEBAR',
     trackChildren: true,
     saveLastFocusedChild: true,
+    onArrowPress: (direction) => {
+      if (direction === 'left') return false;
+      if (direction === 'right') {
+        const routePath = router?.pathname || '';
+        const asPath = router?.asPath || '';
+        const windowPath = typeof window !== 'undefined' ? window.location.pathname : '';
+
+        const isRemote =
+          routePath === '/remote' ||
+          routePath.includes('/remote') ||
+          asPath === '/remote' ||
+          asPath.includes('/remote') ||
+          windowPath === '/remote' ||
+          windowPath.includes('/remote') ||
+          windowPath.endsWith('/remote.html') ||
+          windowPath.endsWith('remote.html');
+
+        if (isRemote) return false;
+      }
+      return true;
+    },
   });
 
   return (
@@ -185,7 +206,22 @@ function NavButton({ icon, label, active = false, onClick, isFirst, isLast, cust
       if (direction === 'left') return false;
       if (direction === 'right') {
         const routePath = router?.pathname || '';
+        const asPath = router?.asPath || '';
         const windowPath = typeof window !== 'undefined' ? window.location.pathname : '';
+
+        const isRemote =
+          routePath === '/remote' ||
+          routePath.includes('/remote') ||
+          asPath === '/remote' ||
+          asPath.includes('/remote') ||
+          windowPath === '/remote' ||
+          windowPath.includes('/remote') ||
+          windowPath.endsWith('/remote.html') ||
+          windowPath.endsWith('remote.html');
+
+        if (isRemote) {
+          return false;
+        }
 
         const isMovieDetail = routePath === '/movie/[id]' || (routePath !== '/movies' && windowPath.includes('/movie/'));
         const isMovieList = routePath === '/movies' || windowPath === '/movies' || windowPath.includes('/movies');
