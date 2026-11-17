@@ -795,6 +795,10 @@ export default function MovieDetail() {
                   <FavoriteDetailsButton item={{ 
                     ...(data?.movie_data || {}), 
                     ...(data?.info || {}), 
+                    series_id: undefined,
+                    seriesId: undefined,
+                    seasons: undefined,
+                    episode_run_time: undefined,
                     stream_id: cleanId, 
                     name: displayTitle,
                     cover: displayCover,

@@ -116,42 +116,54 @@ export default function FavoritesPage() {
 
   const handlePlay = (item: any, forcedStartTime?: number) => {
     if (launchingVideo) return;
-    const id = item.series_id || item.seriesId || item.stream_id || item.id;
 
-    // Détection ultra-robuste du type
+    const store = useDataStore.getState();
+    const rawId = item.stream_id || item.series_id || item.seriesId || item.id;
+    const strId = String(rawId);
+
+    // Détection ultra-robuste et mutuellement exclusive du type
     let type: 'series' | 'movie' | 'live' = 'movie';
 
-    if (
-      item.type === 'series' ||
-      item.stream_type === 'series' ||
-      item.series_id ||
-      item.seriesId ||
-      item.seasons ||
-      item.episode_run_time
-    ) {
-      type = 'series';
-    } else if (
-      item.type === 'live' ||
-      item.stream_type === 'live' ||
-      item.type === 'channel' ||
-      item.epg_channel_id !== undefined ||
-      item.tv_archive !== undefined
-    ) {
-      type = 'live';
-    } else if (item.type === 'movie' || item.stream_type === 'movie') {
+    const isMovie =
+      item.type === 'movie' ||
+      item.stream_type === 'movie' ||
+      Boolean(item.container_extension && !item.series_id && !item.seriesId) ||
+      store.movies?.some((m: any) => String(m.stream_id || m.id) === strId);
+
+    const isSeries =
+      !isMovie && (
+        item.type === 'series' ||
+        item.stream_type === 'series' ||
+        Boolean((item.series_id || item.seriesId) && !item.stream_id) ||
+        (Array.isArray(item.seasons) && item.seasons.length > 0) ||
+        store.series?.some((s: any) => String(s.series_id || s.id) === strId)
+      );
+
+    const isLive =
+      !isMovie &&
+      !isSeries && (
+        item.type === 'live' ||
+        item.stream_type === 'live' ||
+        item.type === 'channel' ||
+        item.epg_channel_id !== undefined ||
+        item.tv_archive !== undefined ||
+        store.channels?.some((c: any) => String(c.stream_id || c.id) === strId)
+      );
+
+    if (isMovie) {
       type = 'movie';
+    } else if (isSeries) {
+      type = 'series';
+    } else if (isLive) {
+      type = 'live';
     } else {
-      // Vérification croisée avec le store Zustand pour les fiches ajoutées avec des métadonnées partielles
-      const store = useDataStore.getState();
-      const strId = String(id);
-      if (store.series?.some((s: any) => String(s.series_id || s.id) === strId)) {
-        type = 'series';
-      } else if (store.channels?.some((c: any) => String(c.stream_id || c.id) === strId)) {
-        type = 'live';
-      } else {
-        type = item.container_extension ? 'movie' : 'live';
-      }
+      type = item.container_extension ? 'movie' : 'live';
     }
+
+    // ID approprié selon le type
+    const id = type === 'series'
+      ? (item.series_id || item.seriesId || item.id || item.stream_id)
+      : (item.stream_id || item.id || item.series_id);
 
     const ext = item.container_extension || (type === 'live' ? 'ts' : 'm3u8');
 
@@ -805,10 +817,42 @@ function FocusableButton({ onClick, icon, label, variant, focusKey: customFocusK
 // ─── Favorite Card ───────────────────────────────────────────────────────────
 
 const FocusableFavoriteCard = React.memo(function FocusableFavoriteCard({ item, catId, isFirstItem, onPlay, onRemove, onMove }: any) {
-  const id = item.series_id || item.seriesId || item.stream_id || item.id;
+  const store = typeof window !== 'undefined' ? useDataStore.getState() : ({} as any);
+  const rawId = item.stream_id || item.series_id || item.seriesId || item.id;
+  const strId = String(rawId);
+
+  const isMovie =
+    item.type === 'movie' ||
+    item.stream_type === 'movie' ||
+    Boolean(item.container_extension && !item.series_id && !item.seriesId) ||
+    store.movies?.some((m: any) => String(m.stream_id || m.id) === strId);
+
+  const isSeries =
+    !isMovie && (
+      item.type === 'series' ||
+      item.stream_type === 'series' ||
+      Boolean((item.series_id || item.seriesId) && !item.stream_id) ||
+      (Array.isArray(item.seasons) && item.seasons.length > 0) ||
+      store.series?.some((s: any) => String(s.series_id || s.id) === strId)
+    );
+
+  const isChannel =
+    !isMovie &&
+    !isSeries && (
+      item.stream_type === 'live' ||
+      item.type === 'live' ||
+      item.type === 'channel' ||
+      item.epg_channel_id !== undefined ||
+      item.tv_archive !== undefined ||
+      store.channels?.some((c: any) => String(c.stream_id || c.id) === strId) ||
+      !item.container_extension
+    );
+
+  const id = isSeries
+    ? (item.series_id || item.seriesId || item.id || item.stream_id)
+    : (item.stream_id || item.id || item.series_id);
+
   const uniqueId = `${catId}_${id}`;
-  const isSeries = item.type === 'series' || item.stream_type === 'series' || !!item.series_id || !!item.seriesId || !!item.seasons || !!item.episode_run_time || (typeof window !== 'undefined' && useDataStore.getState().series?.some((s: any) => String(s.series_id || s.id) === String(id)));
-  const isChannel = !isSeries && (item.stream_type === 'live' || item.type === 'live' || item.type === 'channel' || item.epg_channel_id !== undefined || item.tv_archive !== undefined || (!item.container_extension && item.type !== 'movie' && item.stream_type !== 'movie' && !(typeof window !== 'undefined' && useDataStore.getState().movies?.some((m: any) => String(m.stream_id || m.id) === String(id)))));
   const [active, setActive] = useState(false);
 
   const imgKey = isFirstItem ? 'FIRST_FAV_ITEM' : `IMG_${uniqueId}`;
